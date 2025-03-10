@@ -14,9 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi-dev \
     libssl-dev
 
-RUN python -m pip install -r requirements.txt --no-cache-dir
+#RUN python -m pip install -r requirements.txt --no-cache-dir
+RUN python -m pip install -r requirements.txt
 
-RUN python -m pip install socksio wechatpy cryptography --no-cache-dir
+#RUN python -m pip install socksio wechatpy cryptography --no-cache-dir
+RUN python -m pip install socksio wechatpy cryptography 
 
 EXPOSE 6185
 EXPOSE 6186
