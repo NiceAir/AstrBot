@@ -1,6 +1,21 @@
 version: '3.8'
 
 services:
+  gewe:
+    container_name: gewe
+    image: gewe
+    command: /usr/sbin/init
+    privileged: true
+    networks:
+      - astrbot_network
+    ports:
+      - "2531:2531"  # 主机端口与容器端口映射
+      - "2532:2532"
+    volumes:
+      - "/root/docker/gewtchat_data:/root/temp" 
+    stdin_open: true  # 对应 -i 参数
+    tty: true        # 对应 -t 参数 分配伪终端
+
   astrbot:
     image: my_astrbot:latest
     container_name: astrbot
@@ -13,19 +28,6 @@ services:
     networks:
       - astrbot_network
 
-
-
-  gewe:
-    image: gewe
-    container_name: gewe
-    volumes:
-      - /root/docker/gewtchat_data:/root/temp
-    ports:
-      - "2531:2531"
-      - "2532:2532"
-    restart: always
-    networks:
-      - astrbot_network
 
 networks:
   astrbot_network:
