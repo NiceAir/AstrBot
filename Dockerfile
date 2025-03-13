@@ -12,7 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     python3-dev \
     libffi-dev \
-    libssl-dev
+    libssl-dev \
+    curl
+
+RUN curl -sfL https://raw.githubusercontent.com/milvus-io/milvus/master/scripts/standalone_embed.sh -o standalone_embed.sh
 
 #RUN python -m pip install -r requirements.txt --no-cache-dir
 RUN python -m pip install -r requirements.txt
