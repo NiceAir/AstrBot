@@ -15,13 +15,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     curl
 
-RUN curl -sfL https://raw.githubusercontent.com/milvus-io/milvus/master/scripts/standalone_embed.sh -o standalone_embed.sh
 
 #RUN python -m pip install -r requirements.txt --no-cache-dir
 RUN python -m pip install -r requirements.txt
 
 #RUN python -m pip install socksio wechatpy cryptography --no-cache-dir
 RUN python -m pip install socksio wechatpy cryptography 
+RUN python -m pip install pypinyin pymilvus
 
 EXPOSE 6185
 EXPOSE 6186
