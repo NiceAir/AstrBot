@@ -16,12 +16,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl
 
 
-#RUN python -m pip install -r requirements.txt --no-cache-dir
-RUN python -m pip install -r requirements.txt
+RUN python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
-#RUN python -m pip install socksio wechatpy cryptography --no-cache-dir
-RUN python -m pip install socksio wechatpy cryptography 
-RUN python -m pip install pypinyin pymilvus
+RUN python -m pip install socksio wechatpy cryptography -i https://pypi.tuna.tsinghua.edu.cn/simple 
+RUN python -m pip install pypinyin pymilvus -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 EXPOSE 6185
 EXPOSE 6186
