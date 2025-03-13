@@ -25,6 +25,8 @@ services:
     volumes:
       - /root/docker/astrbot_data:/AstrBot/data
       - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - astrbot_network
 
@@ -33,4 +35,3 @@ networks:
   astrbot_network:
     name: astrbot_network
     driver: bridge
-

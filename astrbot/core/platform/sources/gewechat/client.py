@@ -147,6 +147,11 @@ class SimpleGewechatClient:
             abm.type = MessageType.FRIEND_MESSAGE
             user_id = from_user_name
 
+        # 检查消息是否由自己发送，若是则忽略
+        if user_id == abm.self_id:
+            logger.info("忽略自己发送的消息")
+            return None
+
         abm.message = []
         if at_me:
             abm.message.insert(0, At(qq=abm.self_id))
@@ -186,17 +191,12 @@ class SimpleGewechatClient:
                 abm.message_str = content
             case 3:
                 # 图片消息
-                # 先看看 base64 数据
-                if "ImgBuf" in d and "buffer" in d["ImgBuf"]:
-                    logger.debug("发现图片消息包含 base64 数据，使用。")
-                    abm.message.append(Image.fromBase64(d["ImgBuf"]["buffer"]))
-                else:
-                    file_url = await self.multimedia_downloader.download_image(
-                        self.appid, content
-                    )
-                    logger.debug(f"下载图片: {file_url}")
-                    file_path = await download_image_by_url(file_url)
-                    abm.message.append(Image(file=file_path, url=file_path))
+                file_url = await self.multimedia_downloader.download_image(
+                    self.appid, content
+                )
+                logger.debug(f"下载图片: {file_url}")
+                file_path = await download_image_by_url(file_url)
+                abm.message.append(Image(file=file_path, url=file_path))
 
             case 34:
                 # 语音消息
@@ -309,32 +309,49 @@ class SimpleGewechatClient:
         )
 
         if self.appid:
-            online = await self.check_online(self.appid)
-            if online:
-                logger.info(f"APPID: {self.appid} 已在线")
-                return
+            try:
+                online = await self.check_online(self.appid)
+                if online:
+                    logger.info(f"APPID: {self.appid} 已在线")
+                    return
+            except Exception as e:
+                logger.error(f"检查在线状态失败: {e}")
+                sp.put(f"gewechat-appid-{self.nickname}", "")
+                self.appid = None
 
         payload = {"appId": self.appid}
 
         if self.appid:
             logger.info(f"使用 APPID: {self.appid}, {self.nickname}")
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/login/getLoginQrCode",
-                headers=self.headers,
-                json=payload,
-            ) as resp:
-                json_blob = await resp.json()
-                if json_blob["ret"] != 200:
-                    raise Exception(f"获取二维码失败: {json_blob}")
-                qr_data = json_blob["data"]["qrData"]
-                qr_uuid = json_blob["data"]["uuid"]
-                appid = json_blob["data"]["appId"]
-                logger.info(f"APPID: {appid}")
-                logger.warning(
-                    f"请打开该网址，然后使用微信扫描二维码登录: https://api.cl2wm.cn/api/qrcode/code?text={qr_data}"
-                )
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.base_url}/login/getLoginQrCode",
+                    headers=self.headers,
+                    json=payload,
+                ) as resp:
+                    json_blob = await resp.json()
+                    if json_blob["ret"] != 200:
+                        error_msg = json_blob.get("data", {}).get("msg", "")
+                        if "设备不存在" in error_msg:
+                            logger.error(
+                                f"检测到无效的appid: {self.appid}，将清除并重新登录。"
+                            )
+                            sp.put(f"gewechat-appid-{self.nickname}", "")
+                            self.appid = None
+                            return await self.login()
+                        else:
+                            raise Exception(f"获取二维码失败: {json_blob}")
+                    qr_data = json_blob["data"]["qrData"]
+                    qr_uuid = json_blob["data"]["uuid"]
+                    appid = json_blob["data"]["appId"]
+                    logger.info(f"APPID: {appid}")
+                    logger.warning(
+                        f"请打开该网址，然后使用微信扫描二维码登录: https://api.cl2wm.cn/api/qrcode/code?text={qr_data}"
+                    )
+        except Exception as e:
+            raise e
 
         # 执行登录
         retry_cnt = 64

@@ -353,16 +353,22 @@ class Node(BaseMessageComponent):
     id: T.Optional[int] = 0  # 忽略
     name: T.Optional[str] = ""  # qq昵称
     uin: T.Optional[int] = 0  # qq号
-    content: T.Optional[T.Union[str, list]] = ""  # 子消息段列表
+    content: T.Optional[T.Union[str, list, dict]] = ""  # 子消息段列表
     seq: T.Optional[T.Union[str, list]] = ""  # 忽略
     time: T.Optional[int] = 0
 
-    def __init__(self, content: T.Union[str, list], **_):
+    def __init__(self, content: T.Union[str, list, dict, "Node", T.List["Node"]], **_):
         if isinstance(content, list):
-            _content = ""
-            for chain in content:
-                _content += chain.toString()
+            _content = None
+            if all(isinstance(item, Node) for item in content):
+                _content = [node.toDict() for node in content]
+            else:
+                _content = ""
+                for chain in content:
+                    _content += chain.toString()
             content = _content
+        elif isinstance(content, Node):
+            content = content.toDict()
         super().__init__(content=content, **_)
 
     def toString(self):
