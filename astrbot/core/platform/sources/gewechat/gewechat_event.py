@@ -3,7 +3,6 @@ import uuid
 import traceback
 import os
 
-from astrbot.core.message.components import Emoji
 from astrbot.core.utils.io import save_temp_img, download_file
 from astrbot.core.utils.tencent_record_helper import wav_to_tencent_silk
 from astrbot.api import logger
