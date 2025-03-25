@@ -62,6 +62,8 @@ class ComponentType(Enum):
     TTS = "TTS"
     Unknown = "Unknown"
 
+    WechatEmoji = "WechatEmoji"  # Wechat 下的 emoji 表情包
+
 
 class BaseMessageComponent(BaseModel):
     type: ComponentType
@@ -413,6 +415,8 @@ class Reply(BaseMessageComponent):
     """引用的消息发送时间"""
     message_str: T.Optional[str] = ""
     """解析后的纯文本消息字符串"""
+    sender_str: T.Optional[str] = ""
+    """被引用的消息纯文本"""
 
     text: T.Optional[str] = ""
     """deprecated"""
@@ -560,8 +564,8 @@ class File(BaseMessageComponent):
         super().__init__(name=name, file=file)
 
 
-class Emoji(BaseMessageComponent):
-    type: ComponentType = "emoji"
+class WechatEmoji(BaseMessageComponent):
+    type: ComponentType = "WechatEmoji"
     md5: T.Optional[str] = ""
     md5_len: T.Optional[int] = 0
     cdnurl: T.Optional[str] = ""
@@ -598,5 +602,5 @@ ComponentTypes = {
     "tts": TTS,
     "unknown": Unknown,
     "file": File,
-    "emoji": Emoji,
+    "WechatEmoji": WechatEmoji,
 }

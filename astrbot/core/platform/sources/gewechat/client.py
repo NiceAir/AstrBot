@@ -10,11 +10,17 @@ import anyio
 import quart
 
 from astrbot.api import logger, sp
-from astrbot.api.message_components import Plain, Image, At, Record
+from astrbot.api.message_components import Plain, Image, At, Record, Video
 from astrbot.api.platform import AstrBotMessage, MessageMember, MessageType
 from astrbot.core.utils.io import download_image_by_url
 from .downloader import GeweDownloader
-from .parse import GeweDataPaser
+
+try:
+    from .xml_data_parser import GeweDataParser
+except (ImportError, ModuleNotFoundError) as e:
+    logger.warning(
+        f"警告: 可能未安装 defusedxml 依赖库，将导致无法解析微信的 表情包、引用 类型的消息: {str(e)}"
+    )
 
 
 class SimpleGewechatClient:
@@ -72,6 +78,8 @@ class SimpleGewechatClient:
         self.multimedia_downloader = None
 
         self.userrealnames = {}
+
+        self.shutdown_event = asyncio.Event()
 
     async def get_token_id(self):
         """获取 Gewechat Token。"""
@@ -199,7 +207,6 @@ class SimpleGewechatClient:
             # 忽略微信团队消息
             return
 
-        data_parser = GeweDataPaser(content, abm.group_id == "")
         # 不同消息类型
         match d["MsgType"]:
             case 1:
@@ -217,12 +224,6 @@ class SimpleGewechatClient:
 
             case 34:
                 # 语音消息
-                # data = await self.multimedia_downloader.download_voice(
-                #     self.appid,
-                #     content,
-                #     abm.message_id
-                # )
-                # print(data)
                 if "ImgBuf" in d and "buffer" in d["ImgBuf"]:
                     voice_data = base64.b64decode(d["ImgBuf"]["buffer"])
                     file_path = f"data/temp/gewe_voice_{abm.message_id}.silk"
@@ -237,17 +238,19 @@ class SimpleGewechatClient:
             case 42:  # 名片
                 logger.info("消息类型(42)：名片")
             case 43:  # 视频
-                logger.info("消息类型(43)：视频")
+                video = Video(file="", cover=content)
+                abm.message.append(video)
             case 47:  # emoji
+                data_parser = GeweDataParser(content, abm.group_id == "")
                 emoji = data_parser.parse_emoji()
                 abm.message.append(emoji)
-                logger.info(f"消息类型(47)：emoji, {content}")
             case 48:  # 地理位置
                 logger.info("消息类型(48)：地理位置")
             case 49:  # 公众号/文件/小程序/引用/转账/红包/视频号/群聊邀请
-                logger.info(
-                    "消息类型(49)：公众号/文件/小程序/引用/转账/红包/视频号/群聊邀请"
-                )
+                data_parser = GeweDataParser(content, abm.group_id == "")
+                abm_data = data_parser.parse_mutil_49()
+                if abm_data:
+                    abm.message.append(abm_data)
             case 51:  # 帐号消息同步?
                 logger.info("消息类型(51)：帐号消息同步？")
             case 10000:  # 被踢出群聊/更换群主/修改群名称
@@ -309,7 +312,14 @@ class SimpleGewechatClient:
 
     async def start_polling(self):
         threading.Thread(target=asyncio.run, args=(self._set_callback_url(),)).start()
-        await self.server.run_task(host="0.0.0.0", port=self.port)
+        await self.server.run_task(
+            host="0.0.0.0",
+            port=self.port,
+            shutdown_trigger=self.shutdown_trigger,
+        )
+
+    async def shutdown_trigger(self):
+        await self.shutdown_event.wait()
 
     async def check_online(self, appid: str):
         """检查 APPID 对应的设备是否在线。"""
@@ -548,6 +558,27 @@ class SimpleGewechatClient:
             ) as resp:
                 json_blob = await resp.json()
                 logger.debug(f"发送视频结果: {json_blob}")
+
+    async def forward_video(self, to_wxid, cnd_xml: str):
+        """转发视频
+
+        Args:
+            to_wxid (str): 发送给谁
+            cnd_xml (str): 视频消息的cdn信息
+        """
+        payload = {
+            "appId": self.appid,
+            "toWxid": to_wxid,
+            "xml": cnd_xml,
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                    f"{self.base_url}/message/forwardVideo",
+                    headers=self.headers,
+                    json=payload,
+            ) as resp:
+                json_blob = await resp.json()
+                logger.debug(f"转发视频结果: {json_blob}")
 
     async def post_voice(self, to_wxid, voice_url: str, voice_duration: int):
         """发送语音信息
