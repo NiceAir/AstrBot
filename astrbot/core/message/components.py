@@ -45,6 +45,7 @@ class ComponentType(Enum):
     Reply = "Reply"  # 回复
     Forward = "Forward"  # 转发消息
     File = "File"  # 文件
+    Emoji = "emoji"  # emoji表情包
 
     RPS = "RPS"  # TODO
     Dice = "Dice"  # TODO
@@ -60,6 +61,8 @@ class ComponentType(Enum):
     CardImage = "CardImage"
     TTS = "TTS"
     Unknown = "Unknown"
+
+    WechatEmoji = "WechatEmoji"  # Wechat 下的 emoji 表情包
 
 
 class BaseMessageComponent(BaseModel):
@@ -412,6 +415,8 @@ class Reply(BaseMessageComponent):
     """引用的消息发送时间"""
     message_str: T.Optional[str] = ""
     """解析后的纯文本消息字符串"""
+    sender_str: T.Optional[str] = ""
+    """被引用的消息纯文本"""
 
     text: T.Optional[str] = ""
     """deprecated"""
@@ -559,6 +564,16 @@ class File(BaseMessageComponent):
         super().__init__(name=name, file=file)
 
 
+class WechatEmoji(BaseMessageComponent):
+    type: ComponentType = "WechatEmoji"
+    md5: T.Optional[str] = ""
+    md5_len: T.Optional[int] = 0
+    cdnurl: T.Optional[str] = ""
+
+    def __init__(self, **_):
+        super().__init__(**_)
+
+
 ComponentTypes = {
     "plain": Plain,
     "text": Plain,
@@ -587,4 +602,5 @@ ComponentTypes = {
     "tts": TTS,
     "unknown": Unknown,
     "file": File,
+    "WechatEmoji": WechatEmoji,
 }

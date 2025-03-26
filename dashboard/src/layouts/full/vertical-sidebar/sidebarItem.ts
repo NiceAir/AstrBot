@@ -46,9 +46,19 @@ const sidebarItem: menu[] = [
     to: '/extension-marketplace'
   },
   {
+    title: '函数调用',
+    icon: 'mdi-function-variant',
+    to: '/tool-use'
+  },
+  {
     title: '聊天',
     icon: 'mdi-chat',
     to: '/chat'
+  },
+  {
+    title: '对话数据库',
+    icon: 'mdi-database',
+    to: '/conversation'
   },
   {
     title: '控制台',

@@ -26,4 +26,7 @@ python-telegram-bot
 wechatpy
 dingtalk-stream
 pilk
-
+defusedxml
+mcp
+certifi
+pip

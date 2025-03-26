@@ -32,6 +32,11 @@ const MainRoutes = {
       component: () => import('@/views/ProviderPage.vue')
     },
     {
+      name: 'ToolUsePage',
+      path: '/tool-use',
+      component: () => import('@/views/ToolUsePage.vue')
+    },
+    {
       name: 'Configs',
       path: '/config',
       component: () => import('@/views/ConfigPage.vue')
@@ -40,6 +45,11 @@ const MainRoutes = {
       name: 'Default',
       path: '/dashboard/default',
       component: () => import('@/views/dashboards/default/DefaultDashboard.vue')
+    },
+    {
+      name: 'Conversation',
+      path: '/conversation',
+      component: () => import('@/views/ConversationPage.vue')
     },
     {
       name: 'Console',

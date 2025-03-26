@@ -30,6 +30,7 @@ class QQOfficialWebhook:
         )
         self.client = botpy_client
         self.event_queue = event_queue
+        self.shutdown_event = asyncio.Event()
 
     async def initialize(self):
         logger.info("正在登录到 QQ 官方机器人...")
@@ -102,10 +103,8 @@ class QQOfficialWebhook:
         await self.server.run_task(
             host=self.callback_server_host,
             port=self.port,
-            shutdown_trigger=self.shutdown_trigger_placeholder,
+            shutdown_trigger=self.shutdown_trigger,
         )
 
-    async def shutdown_trigger_placeholder(self):
-        while not self.event_queue.closed:  # noqa: ASYNC110
-            await asyncio.sleep(1)
-        logger.info("qq_official_webhook 适配器已关闭。")
+    async def shutdown_trigger(self):
+        await self.shutdown_event.wait()

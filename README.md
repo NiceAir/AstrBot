@@ -10,14 +10,12 @@ _✨ 易上手的多平台 LLM 聊天机器人及开发框架 ✨_
 
 <a href="https://trendshift.io/repositories/12875" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12875" alt="Soulter%2FAstrBot | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/Soulter/AstrBot)](https://github.com/Soulter/AstrBot/releases/latest)
-<img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="python">
-<a href="https://hub.docker.com/r/soulter/astrbot"><img alt="Docker pull" src="https://img.shields.io/docker/pulls/soulter/astrbot.svg"/></a>
-<a  href="https://qm.qq.com/cgi-bin/qm/qr?k=wtbaNx7EioxeaqS9z7RQWVXPIxg2zYr7&jump_from=webapi&authKey=vlqnv/AV2DbJEvGIcxdlNSpfxVy+8vVqijgreRdnVKOaydpc+YSw4MctmEbr0k5"><img alt="Static Badge" src="https://img.shields.io/badge/QQ群-630166526-purple"></a>
-[![wakatime](https://wakatime.com/badge/user/915e5316-99c6-4563-a483-ef186cf000c9/project/018e705a-a1a7-409a-a849-3013485e6c8e.svg)](https://wakatime.com/badge/user/915e5316-99c6-4563-a483-ef186cf000c9/project/018e705a-a1a7-409a-a849-3013485e6c8e)
-![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.soulter.top%2Fastrbot%2Fstats&query=v&label=7%E6%97%A5%E6%B6%88%E6%81%AF%E4%B8%8A%E8%A1%8C%E9%87%8F&cacheSeconds=60)
-[![codecov](https://codecov.io/gh/Soulter/AstrBot/graph/badge.svg?token=FF3P5967B8)](https://codecov.io/gh/Soulter/AstrBot)
-[![star](https://gitcode.com/Soulter/AstrBot/star/badge.svg)](https://gitcode.com/Soulter/AstrBot)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/Soulter/AstrBot?style=for-the-badge&color=76bad9)](https://github.com/Soulter/AstrBot/releases/latest)
+<img src="https://img.shields.io/badge/python-3.10+-blue.svg?style=for-the-badge&color=76bad9" alt="python">
+<a href="https://hub.docker.com/r/soulter/astrbot"><img alt="Docker pull" src="https://img.shields.io/docker/pulls/soulter/astrbot.svg?style=for-the-badge&color=76bad9"/></a>
+<a  href="https://qm.qq.com/cgi-bin/qm/qr?k=wtbaNx7EioxeaqS9z7RQWVXPIxg2zYr7&jump_from=webapi&authKey=vlqnv/AV2DbJEvGIcxdlNSpfxVy+8vVqijgreRdnVKOaydpc+YSw4MctmEbr0k5"><img alt="Static Badge" src="https://img.shields.io/badge/QQ群-775869627-purple?style=for-the-badge&color=76bad9"></a>
+[![wakatime](https://wakatime.com/badge/user/915e5316-99c6-4563-a483-ef186cf000c9/project/018e705a-a1a7-409a-a849-3013485e6c8e.svg?style=for-the-badge&color=76bad9)](https://wakatime.com/badge/user/915e5316-99c6-4563-a483-ef186cf000c9/project/018e705a-a1a7-409a-a849-3013485e6c8e)
+![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.soulter.top%2Fastrbot%2Fstats&query=v&label=7%E6%97%A5%E6%B4%BB%E8%B7%83%E9%87%8F&cacheSeconds=60&style=for-the-badge&color=3b618e)
 
 <a href="https://github.com/Soulter/AstrBot/blob/master/README_en.md">English</a> ｜
 <a href="https://github.com/Soulter/AstrBot/blob/master/README_ja.md">日本語</a> ｜
@@ -26,6 +24,11 @@ _✨ 易上手的多平台 LLM 聊天机器人及开发框架 ✨_
 </div>
 
 AstrBot 是一个松耦合、异步、支持多消息平台部署、具有易用的插件系统和完善的大语言模型（LLM）接入功能的聊天机器人及开发框架。
+
+[![star](https://gitcode.com/Soulter/AstrBot/star/badge.svg?style=for-the-badge)](https://gitcode.com/Soulter/AstrBot)
+
+<!-- [![codecov](https://img.shields.io/codecov/c/github/soulter/astrbot?style=for-the-badge)](https://codecov.io/gh/Soulter/AstrBot)
+ -->
 
 ## ✨ 主要功能
 
@@ -49,30 +52,25 @@ AstrBot 是一个松耦合、异步、支持多消息平台部署、具有易用
 
 #### Windows 一键安装器部署
 
-需要电脑上安装有 Python（>3.10）。请参阅官方文档 [使用 Windows 一键安装器部署 AstrBot](https://astrbot.app/deploy/astrbot/windows.html) 。
+请参阅官方文档 [使用 Windows 一键安装器部署 AstrBot](https://astrbot.app/deploy/astrbot/windows.html) 。
 
-#### Replit 部署
+#### 宝塔面板部署
 
-[![Run on Repl.it](https://repl.it/badge/github/Soulter/AstrBot)](https://repl.it/github/Soulter/AstrBot)
+请参阅官方文档 [宝塔面板部署](https://astrbot.app/deploy/astrbot/btpanel.html) 。
 
 #### CasaOS 部署
 
 社区贡献的部署方式。
 
-请参阅官方文档 [通过源码部署 AstrBot](https://astrbot.app/deploy/astrbot/casaos.html) 。
+请参阅官方文档 [CasaOS 部署](https://astrbot.app/deploy/astrbot/casaos.html) 。
 
 #### 手动部署
 
 请参阅官方文档 [通过源码部署 AstrBot](https://astrbot.app/deploy/astrbot/cli.html) 。
 
-## 🚀 路线图
+#### Replit 部署
 
-### 垂类功能
-
-1. 更好的上下文管理：限制 token 总数、对话上下文总结
-3. AstrBot in Minecraft
-
-### 横功能
+[![Run on Repl.it](https://repl.it/badge/github/Soulter/AstrBot)](https://repl.it/github/Soulter/AstrBot)
 
 ## ⚡ 消息平台支持情况
 
@@ -106,6 +104,7 @@ AstrBot 是一个松耦合、异步、支持多消息平台部署、具有易用
 | Whisper | ✔    | 语音转文本 | 支持 API、本地部署 |
 | SenseVoice | ✔    | 语音转文本 | 本地部署 |
 | OpenAI TTS API | ✔    | 文本转语音 |  |
+| GSVI | ✔    | 文本转语音 | GPT-Sovits-Inference |
 | Fishaudio | ✔    | 文本转语音 | GPT-Sovits 作者参与的项目 |
 | Edge-TTS | ✔    | 文本转语音 | Edge 浏览器的免费 TTS |
 
@@ -183,17 +182,6 @@ _✨ 内置 Web Chat，在线与机器人交互 ✨_
 1. The project is protected under the `AGPL-v3` opensource license.
 2. The deployment of WeChat (personal account) utilizes [Gewechat](https://github.com/Devo919/Gewechat) service. AstrBot only guarantees connectivity with Gewechat and recommends using a WeChat account that is not frequently used. In the event of account risk control, the author of this project shall not bear any responsibility.
 3. Please ensure compliance with local laws and regulations when using this project.
-
-<!-- ## ✨ ATRI [Beta 测试]
-
-该功能作为插件载入。插件仓库地址：[astrbot_plugin_atri](https://github.com/Soulter/astrbot_plugin_atri)
-
-1. 基于《ATRI ~ My Dear Moments》主角 ATRI 角色台词作为微调数据集的 `Qwen1.5-7B-Chat Lora` 微调模型。
-2. 长期记忆
-3. 表情包理解与回复
-4. TTS
-    -->
-
 
 _私は、高性能ですから!_
 
