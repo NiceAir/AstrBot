@@ -1,6 +1,6 @@
 <p align="center">
-    
-![6e1279651f16d7fdf4727558b72bbaf1](https://github.com/user-attachments/assets/ead4c551-fc3c-48f7-a6f7-afbfdb820512)
+
+![yjtp](https://github.com/user-attachments/assets/dcc74009-c57e-4b66-9ae3-0a81fc001255)
 
 </p>
 
@@ -29,6 +29,10 @@ AstrBot 是一个松耦合、异步、支持多消息平台部署、具有易用
 
 <!-- [![codecov](https://img.shields.io/codecov/c/github/soulter/astrbot?style=for-the-badge)](https://codecov.io/gh/Soulter/AstrBot)
  -->
+
+## ✨ 近期更新
+
+1. AstrBot 现已支持接入 [MCP](https://modelcontextprotocol.io/) 服务器！
 
 ## ✨ 主要功能
 
