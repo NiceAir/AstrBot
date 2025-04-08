@@ -3,10 +3,11 @@ import asyncio
 import functools
 from typing import List
 from .. import Provider, Personality
-from ..entites import LLMResponse
+from ..entities import LLMResponse
 from ..func_tool_manager import FuncCall
 from astrbot.core.db import BaseDatabase
 from ..register import register_provider_adapter
+from astrbot.core.message.message_event_result import MessageChain
 from .openai_source import ProviderOpenAIOfficial
 from astrbot.core import logger, sp
 from dashscope import Application
@@ -51,10 +52,14 @@ class ProviderDashscope(ProviderOpenAIOfficial):
             self.timeout = int(self.timeout)
 
     def has_rag_options(self):
-        if (
-            self.rag_options
-            and self.rag_options.get("pipeline_ids", None)
-            and self.rag_options.get("file_ids", None)
+        """判断是否有 RAG 选项
+
+        Returns:
+            bool: 是否有 RAG 选项
+        """
+        if self.rag_options and (
+            len(self.rag_options.get("pipeline_ids", [])) > 0
+            or len(self.rag_options.get("file_ids", [])) > 0
         ):
             return True
         return False
@@ -78,7 +83,7 @@ class ProviderDashscope(ProviderOpenAIOfficial):
 
         if (
             self.dashscope_app_type in ["agent", "dialog-workflow"]
-            and self.has_rag_options()
+            and not self.has_rag_options()
         ):
             # 支持多轮对话的
             new_record = {"role": "user", "content": prompt}
@@ -92,12 +97,15 @@ class ProviderDashscope(ProviderOpenAIOfficial):
                 if "_no_save" in part:
                     del part["_no_save"]
             # 调用阿里云百炼 API
+            payload = {
+                "app_id": self.app_id,
+                "api_key": self.api_key,
+                "messages": context_query,
+                "biz_params": payload_vars or None,
+            }
             partial = functools.partial(
                 Application.call,
-                app_id=self.app_id,
-                api_key=self.api_key,
-                messages=context_query,
-                biz_params=payload_vars or None,
+                **payload,
             )
             response = await asyncio.get_event_loop().run_in_executor(None, partial)
         else:
@@ -125,7 +133,9 @@ class ProviderDashscope(ProviderOpenAIOfficial):
             )
             return LLMResponse(
                 role="err",
-                completion_text=f"阿里云百炼请求失败: message={response.message} code={response.status_code}",
+                result_chain=MessageChain().message(
+                    f"阿里云百炼请求失败: message={response.message} code={response.status_code}"
+                ),
             )
 
         output_text = response.output.get("text", "")
@@ -134,10 +144,45 @@ class ProviderDashscope(ProviderOpenAIOfficial):
         if self.output_reference and response.output.get("doc_references", None):
             ref_str = ""
             for ref in response.output.get("doc_references", []):
-                ref_str += f"{ref['index_id']}. {ref['title']}\n"
+                ref_title = (
+                    ref.get("title", "")
+                    if ref.get("title")
+                    else ref.get("doc_name", "")
+                )
+                ref_str += f"{ref['index_id']}. {ref_title}\n"
             output_text += f"\n\n回答来源:\n{ref_str}"
 
-        return LLMResponse(role="assistant", completion_text=output_text)
+        llm_response = LLMResponse("assistant")
+        llm_response.result_chain = MessageChain().message(output_text)
+
+        return llm_response
+
+    async def text_chat_stream(
+        self,
+        prompt,
+        session_id=None,
+        image_urls=...,
+        func_tool=None,
+        contexts=...,
+        system_prompt=None,
+        tool_calls_result=None,
+        **kwargs,
+    ):
+        # raise NotImplementedError("This method is not implemented yet.")
+        # 调用 text_chat 模拟流式
+        llm_response = await self.text_chat(
+            prompt=prompt,
+            session_id=session_id,
+            image_urls=image_urls,
+            func_tool=func_tool,
+            contexts=contexts,
+            system_prompt=system_prompt,
+            tool_calls_result=tool_calls_result,
+        )
+        llm_response.is_chunk = True
+        yield llm_response
+        llm_response.is_chunk = False
+        yield llm_response
 
     async def forget(self, session_id):
         return True
