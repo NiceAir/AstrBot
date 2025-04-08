@@ -15,6 +15,7 @@ from astrbot.core.star.filter.command_group import CommandGroupFilter
 from astrbot.core.star.filter.permission import PermissionTypeFilter
 from astrbot.core.star.filter.regex import RegexFilter
 from astrbot.core.star.star_handler import EventType
+from astrbot.core import DEMO_MODE
 
 
 class PluginRoute(Route):
@@ -50,6 +51,13 @@ class PluginRoute(Route):
         }
 
     async def reload_plugins(self):
+        if DEMO_MODE:
+            return (
+                Response()
+                .error("You are not permitted to do this operation in demo mode")
+                .__dict__
+            )
+
         data = await request.json
         plugin_name = data.get("name", None)
         try:
@@ -187,6 +195,13 @@ class PluginRoute(Route):
         return handlers
 
     async def install_plugin(self):
+        if DEMO_MODE:
+            return (
+                Response()
+                .error("You are not permitted to do this operation in demo mode")
+                .__dict__
+            )
+
         post_data = await request.json
         repo_url = post_data["url"]
 
@@ -196,30 +211,44 @@ class PluginRoute(Route):
 
         try:
             logger.info(f"正在安装插件 {repo_url}")
-            await self.plugin_manager.install_plugin(repo_url, proxy)
+            plugin_info = await self.plugin_manager.install_plugin(repo_url, proxy)
             # self.core_lifecycle.restart()
             logger.info(f"安装插件 {repo_url} 成功。")
-            return Response().ok(None, "安装成功。").__dict__
+            return Response().ok(plugin_info, "安装成功。").__dict__
         except Exception as e:
             logger.error(traceback.format_exc())
             return Response().error(str(e)).__dict__
 
     async def install_plugin_upload(self):
+        if DEMO_MODE:
+            return (
+                Response()
+                .error("You are not permitted to do this operation in demo mode")
+                .__dict__
+            )
+
         try:
             file = await request.files
             file = file["file"]
             logger.info(f"正在安装用户上传的插件 {file.filename}")
             file_path = f"data/temp/{file.filename}"
             await file.save(file_path)
-            await self.plugin_manager.install_plugin_from_file(file_path)
+            plugin_info = await self.plugin_manager.install_plugin_from_file(file_path)
             # self.core_lifecycle.restart()
             logger.info(f"安装插件 {file.filename} 成功")
-            return Response().ok(None, "安装成功。").__dict__
+            return Response().ok(plugin_info, "安装成功。").__dict__
         except Exception as e:
             logger.error(traceback.format_exc())
             return Response().error(str(e)).__dict__
 
     async def uninstall_plugin(self):
+        if DEMO_MODE:
+            return (
+                Response()
+                .error("You are not permitted to do this operation in demo mode")
+                .__dict__
+            )
+
         post_data = await request.json
         plugin_name = post_data["name"]
         try:
@@ -232,6 +261,13 @@ class PluginRoute(Route):
             return Response().error(str(e)).__dict__
 
     async def update_plugin(self):
+        if DEMO_MODE:
+            return (
+                Response()
+                .error("You are not permitted to do this operation in demo mode")
+                .__dict__
+            )
+
         post_data = await request.json
         plugin_name = post_data["name"]
         proxy: str = post_data.get("proxy", None)
@@ -247,6 +283,13 @@ class PluginRoute(Route):
             return Response().error(str(e)).__dict__
 
     async def off_plugin(self):
+        if DEMO_MODE:
+            return (
+                Response()
+                .error("You are not permitted to do this operation in demo mode")
+                .__dict__
+            )
+
         post_data = await request.json
         plugin_name = post_data["name"]
         try:
@@ -258,6 +301,13 @@ class PluginRoute(Route):
             return Response().error(str(e)).__dict__
 
     async def on_plugin(self):
+        if DEMO_MODE:
+            return (
+                Response()
+                .error("You are not permitted to do this operation in demo mode")
+                .__dict__
+            )
+
         post_data = await request.json
         plugin_name = post_data["name"]
         try:

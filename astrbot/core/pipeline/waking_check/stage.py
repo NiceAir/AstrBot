@@ -1,5 +1,6 @@
 from ..stage import Stage, register_stage
 from ..context import PipelineContext
+from astrbot import logger
 from typing import Union, AsyncGenerator
 from astrbot.core.platform.astr_message_event import AstrMessageEvent
 from astrbot.core.message.message_event_result import MessageEventResult, MessageChain
@@ -21,6 +22,11 @@ class WakingCheckStage(Stage):
     """
 
     async def initialize(self, ctx: PipelineContext) -> None:
+        """初始化唤醒检查阶段
+
+        Args:
+            ctx (PipelineContext): 消息管道上下文对象, 包括配置和插件管理器
+        """
         self.ctx = ctx
         self.no_permission_reply = self.ctx.astrbot_config["platform_settings"].get(
             "no_permission_reply", True
@@ -88,6 +94,7 @@ class WakingCheckStage(Stage):
             # filter 需满足 AND 逻辑关系
             passed = True
             permission_not_pass = False
+            permission_filter_raise_error = False
             if len(handler.event_filters) == 0:
                 continue
 
@@ -96,6 +103,7 @@ class WakingCheckStage(Stage):
                     if isinstance(filter, PermissionTypeFilter):
                         if not filter.filter(event, self.ctx.astrbot_config):
                             permission_not_pass = True
+                            permission_filter_raise_error = filter.raise_error
                     else:
                         if not filter.filter(event, self.ctx.astrbot_config):
                             passed = False
@@ -112,6 +120,9 @@ class WakingCheckStage(Stage):
                     break
             if passed:
                 if permission_not_pass:
+                    if not permission_filter_raise_error:
+                        # 跳过
+                        continue
                     if self.no_permission_reply:
                         await event.send(
                             MessageChain().message(
@@ -119,6 +130,9 @@ class WakingCheckStage(Stage):
                             )
                         )
                         await event._post_send()
+                    logger.info(
+                        f"触发 {star_map[handler.handler_module_path].name} 时, 用户(ID={event.get_sender_id()}) 权限不足。"
+                    )
                     event.stop_event()
                     return
 

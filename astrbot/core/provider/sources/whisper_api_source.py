@@ -2,7 +2,7 @@ import uuid
 import os
 from openai import AsyncOpenAI, NOT_GIVEN
 from ..provider import STTProvider
-from ..entites import ProviderType
+from ..entities import ProviderType
 from astrbot.core.utils.io import download_file
 from ..register import register_provider_adapter
 from astrbot.core import logger
@@ -30,14 +30,6 @@ class ProviderOpenAIWhisperAPI(STTProvider):
         )
 
         self.set_model(provider_config.get("model", None))
-
-    async def _convert_audio(self, path: str) -> str:
-        from pyffmpeg import FFmpeg
-
-        filename = str(uuid.uuid4()) + ".mp3"
-        ff = FFmpeg()
-        output_path = ff.convert(path, os.path.join("data/temp", filename))
-        return output_path
 
     async def _is_silk_file(self, file_path):
         silk_header = b"SILK"
