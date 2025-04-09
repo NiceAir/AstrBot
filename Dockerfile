@@ -4,7 +4,6 @@ WORKDIR /AstrBot
 COPY . /AstrBot/
 
 COPY cn-sources-ubuntu-debian.list  /etc/apt/sources.list
-COPY pip.conf ~/.pip/pip.conf
 
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -18,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bash 
 
 
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 RUN python -m pip install uv
 RUN uv pip install -r requirements.txt  --system
