@@ -18,3 +18,4 @@ ENV/
 README*.md
 dashboard/
 data/
+.python-version

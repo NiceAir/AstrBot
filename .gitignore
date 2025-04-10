@@ -15,6 +15,7 @@ cookies.json
 logs/
 addons/plugins
 .coverage
+.python-version
 
 
 tests/astrbot_plugin_openai
