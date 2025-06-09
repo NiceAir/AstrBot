@@ -2,49 +2,59 @@
 插件的重载、启停、安装、卸载等操作。
 """
 
-import inspect
+import asyncio
 import functools
+import inspect
+import json
+import logging
 import os
 import sys
-import json
 import traceback
-import yaml
-import logging
-import asyncio
 from types import ModuleType
 from typing import List
-from astrbot.core.config.astrbot_config import AstrBotConfig
-from astrbot.core import logger, sp, pip_installer
-from .context import Context
-from . import StarMetadata
-from .updator import PluginUpdator
-from astrbot.core.utils.io import remove_dir
-from .star import star_registry, star_map
-from .star_handler import star_handlers_registry
-from astrbot.core.provider.register import llm_tools
 
-from .filter.permission import PermissionTypeFilter, PermissionType
+import yaml
+
+from astrbot.core import logger, pip_installer, sp
+from astrbot.core.config.astrbot_config import AstrBotConfig
+from astrbot.core.provider.register import llm_tools
+from astrbot.core.utils.astrbot_path import (
+    get_astrbot_config_path,
+    get_astrbot_plugin_path,
+)
+from astrbot.core.utils.io import remove_dir
+
+from . import StarMetadata
+from .context import Context
+from .filter.permission import PermissionType, PermissionTypeFilter
+from .star import star_map, star_registry
+from .star_handler import star_handlers_registry
+from .updator import PluginUpdator
+
+try:
+    from watchfiles import PythonFilter, awatch
+except ImportError:
+    if os.getenv("ASTRBOT_RELOAD", "0") == "1":
+        logger.warning("未安装 watchfiles，无法实现插件的热重载。")
+
+try:
+    import nh3
+except ImportError:
+    logger.warning("未安装 nh3 库，无法清理插件 README.md 中的 HTML 标签。")
+    nh3 = None
 
 
 class PluginManager:
     def __init__(self, context: Context, config: AstrBotConfig):
-        self.updator = PluginUpdator(config["plugin_repo_mirror"])
+        self.updator = PluginUpdator()
 
         self.context = context
         self.context._star_manager = self
 
         self.config = config
-        self.plugin_store_path = os.path.abspath(
-            os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "../../../data/plugins"
-            )
-        )
+        self.plugin_store_path = get_astrbot_plugin_path()
         """存储插件的路径。即 data/plugins"""
-        self.plugin_config_path = os.path.abspath(
-            os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "../../../data/config"
-            )
-        )
+        self.plugin_config_path = get_astrbot_config_path()
         """存储插件配置的路径。data/config"""
         self.reserved_plugin_path = os.path.abspath(
             os.path.join(
@@ -56,6 +66,58 @@ class PluginManager:
         """插件配置 Schema 文件名"""
 
         self.failed_plugin_info = ""
+        if os.getenv("ASTRBOT_RELOAD", "0") == "1":
+            asyncio.create_task(self._watch_plugins_changes())
+
+    async def _watch_plugins_changes(self):
+        """监视插件文件变化"""
+        try:
+            async for changes in awatch(
+                self.plugin_store_path,
+                self.reserved_plugin_path,
+                watch_filter=PythonFilter(),
+                recursive=True,
+            ):
+                # 处理文件变化
+                await self._handle_file_changes(changes)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error(f"插件热重载监视任务异常: {str(e)}")
+            logger.error(traceback.format_exc())
+
+    async def _handle_file_changes(self, changes):
+        """处理文件变化"""
+        logger.info(f"检测到文件变化: {changes}")
+        plugins_to_check = []
+
+        for star in star_registry:
+            if not star.activated:
+                continue
+            if star.root_dir_name is None:
+                continue
+            if star.reserved:
+                plugin_dir_path = os.path.join(
+                    self.reserved_plugin_path, star.root_dir_name
+                )
+            else:
+                plugin_dir_path = os.path.join(
+                    self.plugin_store_path, star.root_dir_name
+                )
+            plugins_to_check.append((plugin_dir_path, star.name))
+        reloaded_plugins = set()
+        for change in changes:
+            _, file_path = change
+            for plugin_dir_path, plugin_name in plugins_to_check:
+                if (
+                    os.path.commonpath([plugin_dir_path])
+                    == os.path.commonpath([plugin_dir_path, file_path])
+                    and plugin_name not in reloaded_plugins
+                ):
+                    logger.info(f"检测到插件 {plugin_name} 文件变化，正在重载...")
+                    await self.reload(plugin_name)
+                    reloaded_plugins.add(plugin_name)
+                    break
 
     def _get_classes(self, arg: ModuleType):
         """获取指定模块（可以理解为一个 python 文件）下所有的类"""
@@ -104,7 +166,7 @@ class PluginManager:
             plugins.extend(_p)
         return plugins
 
-    def _check_plugin_dept_update(self, target_plugin: str = None):
+    async def _check_plugin_dept_update(self, target_plugin: str = None):
         """检查插件的依赖
         如果 target_plugin 为 None，则检查所有插件的依赖
         """
@@ -123,7 +185,7 @@ class PluginManager:
                 pth = os.path.join(plugin_path, "requirements.txt")
                 logger.info(f"正在安装插件 {p} 所需的依赖库: {pth}")
                 try:
-                    pip_installer.install(requirements_path=pth)
+                    await pip_installer.install(requirements_path=pth)
                 except Exception as e:
                     logger.error(f"更新插件 {p} 的依赖失败。Code: {str(e)}")
 
@@ -166,8 +228,71 @@ class PluginManager:
 
         return metadata
 
+    def _get_plugin_related_modules(
+        self, plugin_root_dir: str, is_reserved: bool = False
+    ) -> list[str]:
+        """获取与指定插件相关的所有已加载模块名
+
+        根据插件根目录名和是否为保留插件，从 sys.modules 中筛选出相关的模块名
+
+        Args:
+            plugin_root_dir: 插件根目录名
+            is_reserved: 是否是保留插件，影响模块路径前缀
+
+        Returns:
+            list[str]: 与该插件相关的模块名列表
+        """
+        prefix = "packages." if is_reserved else "data.plugins."
+        return [
+            key
+            for key in list(sys.modules.keys())
+            if key.startswith(f"{prefix}{plugin_root_dir}")
+        ]
+
+    def _purge_modules(
+        self,
+        module_patterns: list[str] = None,
+        root_dir_name: str = None,
+        is_reserved: bool = False,
+    ):
+        """从 sys.modules 中移除指定的模块
+
+        可以基于模块名模式或插件目录名移除模块，用于清理插件相关的模块缓存
+
+        Args:
+            module_patterns: 要移除的模块名模式列表（例如 ["data.plugins", "packages"]）
+            root_dir_name: 插件根目录名，用于移除与该插件相关的所有模块
+            is_reserved: 插件是否为保留插件（影响模块路径前缀）
+        """
+        if module_patterns:
+            for pattern in module_patterns:
+                for key in list(sys.modules.keys()):
+                    if key.startswith(pattern):
+                        del sys.modules[key]
+                        logger.debug(f"删除模块 {key}")
+
+        if root_dir_name:
+            for module_name in self._get_plugin_related_modules(
+                root_dir_name, is_reserved
+            ):
+                try:
+                    del sys.modules[module_name]
+                    logger.debug(f"删除模块 {module_name}")
+                except KeyError:
+                    logger.warning(f"模块 {module_name} 未载入")
+
     async def reload(self, specified_plugin_name=None):
-        """扫描并加载所有的插件 当 specified_module_path 指定时，重载指定插件"""
+        """重新加载插件
+
+        Args:
+            specified_plugin_name (str, optional): 要重载的特定插件名称。
+                                                 如果为 None，则重载所有插件。
+
+        Returns:
+            tuple: 返回 load() 方法的结果，包含 (success, error_message)
+                - success (bool): 重载是否成功
+                - error_message (str|None): 错误信息，成功时为 None
+        """
         specified_module_path = None
         if specified_plugin_name:
             for smd in star_registry:
@@ -192,9 +317,6 @@ class PluginManager:
             star_handlers_registry.clear()
             star_map.clear()
             star_registry.clear()
-            for key in list(sys.modules.keys()):
-                if key.startswith("data.plugins") or key.startswith("packages"):
-                    del sys.modules[key]
         else:
             # 只重载指定插件
             smd = star_map.get(specified_module_path)
@@ -209,11 +331,44 @@ class PluginManager:
 
                 await self._unbind_plugin(smd.name, specified_module_path)
 
-        return await self.load(specified_module_path)
+        result = await self.load(specified_module_path)
+
+        # 更新所有插件的平台兼容性
+        await self.update_all_platform_compatibility()
+
+        return result
+
+    async def update_all_platform_compatibility(self):
+        """更新所有插件的平台兼容性设置"""
+        # 获取最新的平台插件启用配置
+        plugin_enable_config = self.config.get("platform_settings", {}).get(
+            "plugin_enable", {}
+        )
+        logger.debug(
+            f"更新所有插件的平台兼容性设置，平台数量: {len(plugin_enable_config)}"
+        )
+
+        # 遍历所有插件，更新平台兼容性
+        for plugin in self.context.get_all_stars():
+            plugin.update_platform_compatibility(plugin_enable_config)
+            logger.debug(
+                f"插件 {plugin.name} 支持的平台: {list(plugin.supported_platforms.keys())}"
+            )
+
+        return True
 
     async def load(self, specified_module_path=None, specified_dir_name=None):
         """载入插件。
         当 specified_module_path 或者 specified_dir_name 不为 None 时，只载入指定的插件。
+
+        Args:
+            specified_module_path (str, optional): 指定要加载的插件模块路径。例如: "data.plugins.my_plugin.main"
+            specified_dir_name (str, optional): 指定要加载的插件目录名。例如: "my_plugin"
+
+        Returns:
+            tuple: (success, error_message)
+                - success (bool): 是否全部加载成功
+                - error_message (str|None): 错误信息，成功时为 None
         """
         inactivated_plugins: list = sp.get("inactivated_plugins", [])
         inactivated_llm_tools: list = sp.get("inactivated_llm_tools", [])
@@ -252,7 +407,7 @@ class PluginManager:
                     module = __import__(path, fromlist=[module_str])
                 except (ModuleNotFoundError, ImportError):
                     # 尝试安装依赖
-                    self._check_plugin_dept_update(target_plugin=root_dir_name)
+                    await self._check_plugin_dept_update(target_plugin=root_dir_name)
                     module = __import__(path, fromlist=[module_str])
                 except Exception as e:
                     logger.error(traceback.format_exc())
@@ -296,11 +451,11 @@ class PluginManager:
                             metadata.repo = metadata_yaml.repo
                     except Exception:
                         pass
-
+                    metadata.config = plugin_config
                     if path not in inactivated_plugins:
                         # 只有没有禁用插件时才实例化插件类
                         if plugin_config:
-                            metadata.config = plugin_config
+                            # metadata.config = plugin_config
                             try:
                                 metadata.star_cls = metadata.star_cls_type(
                                     context=self.context, config=plugin_config
@@ -319,6 +474,12 @@ class PluginManager:
                     metadata.module = module
                     metadata.root_dir_name = root_dir_name
                     metadata.reserved = reserved
+
+                    # 更新插件的平台兼容性
+                    plugin_enable_config = self.config.get("platform_settings", {}).get(
+                        "plugin_enable", {}
+                    )
+                    metadata.update_platform_compatibility(plugin_enable_config)
 
                     # 绑定 handler
                     related_handlers = (
@@ -447,6 +608,20 @@ class PluginManager:
             return False, fail_rec
 
     async def install_plugin(self, repo_url: str, proxy=""):
+        """从仓库 URL 安装插件
+
+        从指定的仓库 URL 下载并安装插件，然后加载该插件到系统中
+
+        Args:
+            repo_url (str): 要安装的插件仓库 URL
+            proxy (str, optional): 用于下载的代理服务器。默认为空字符串。
+
+        Returns:
+            dict | None: 安装成功时返回包含插件信息的字典:
+                - repo: 插件的仓库 URL
+                - readme: README.md 文件的内容(如果存在)
+                如果找不到插件元数据则返回 None。
+        """
         plugin_path = await self.updator.install(repo_url, proxy)
         # reload the plugin
         dir_name = os.path.basename(plugin_path)
@@ -467,20 +642,29 @@ class PluginManager:
         if not os.path.exists(readme_path):
             readme_path = os.path.join(plugin_path, "readme.md")
 
-        if os.path.exists(readme_path):
+        if os.path.exists(readme_path) and nh3:
             try:
                 with open(readme_path, "r", encoding="utf-8") as f:
                     readme_content = f.read()
+                cleaned_content = nh3.clean(readme_content)
             except Exception as e:
                 logger.warning(f"读取插件 {dir_name} 的 README.md 文件失败: {str(e)}")
 
         plugin_info = None
         if plugin:
-            plugin_info = {"repo": plugin.repo, "readme": readme_content}
+            plugin_info = {"repo": plugin.repo, "readme": cleaned_content}
 
         return plugin_info
 
     async def uninstall_plugin(self, plugin_name: str):
+        """卸载指定的插件。
+
+        Args:
+            plugin_name (str): 要卸载的插件名称
+
+        Raises:
+            Exception: 当插件不存在、是保留插件时，或删除插件文件夹失败时抛出异常
+        """
         plugin = self.context.get_registered_star(plugin_name)
         if not plugin:
             raise Exception("插件不存在。")
@@ -509,9 +693,17 @@ class PluginManager:
             )
 
     async def _unbind_plugin(self, plugin_name: str, plugin_module_path: str):
+        """解绑并移除一个插件。
+
+        Args:
+            plugin_name: 要解绑的插件名称
+            plugin_module_path: 插件的完整模块路径
+        """
+        plugin = None
         del star_map[plugin_module_path]
         for i, p in enumerate(star_registry):
             if p.name == plugin_name:
+                plugin = p
                 del star_registry[i]
                 break
         for handler in star_handlers_registry.get_handlers_by_module_name(
@@ -521,21 +713,17 @@ class PluginManager:
                 f"移除了插件 {plugin_name} 的处理函数 {handler.handler_name} ({len(star_handlers_registry)})"
             )
             star_handlers_registry.remove(handler)
-        keys_to_delete = [
-            k
-            for k, v in star_handlers_registry.star_handlers_map.items()
-            if k.startswith(plugin_module_path)
-        ]
-        for k in keys_to_delete:
-            try:
-                del star_handlers_registry.star_handlers_map[k]
-            except KeyError:
-                pass
 
-        try:
-            del sys.modules[plugin_module_path]
-        except KeyError:
-            logger.warning(f"模块 {plugin_module_path} 未载入")
+        for k in [
+            k
+            for k in star_handlers_registry.star_handlers_map
+            if k.startswith(plugin_module_path)
+        ]:
+            del star_handlers_registry.star_handlers_map[k]
+
+        self._purge_modules(
+            root_dir_name=plugin.root_dir_name, is_reserved=plugin.reserved
+        )
 
     async def update_plugin(self, plugin_name: str, proxy=""):
         """升级一个插件"""

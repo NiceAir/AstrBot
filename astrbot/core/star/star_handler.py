@@ -1,6 +1,5 @@
 from __future__ import annotations
 import enum
-import heapq
 from dataclasses import dataclass, field
 from typing import Awaitable, List, Dict, TypeVar, Generic
 from .filter import HandlerFilter
@@ -8,84 +7,65 @@ from .star import star_map
 
 T = TypeVar("T", bound="StarHandlerMetadata")
 
-
 class StarHandlerRegistry(Generic[T]):
-    """用于存储所有的 Star Handler"""
-
-    star_handlers_map: Dict[str, StarHandlerMetadata] = {}
-    """用于快速查找。key 是 handler_full_name"""
-    _handlers = []
+    def __init__(self):
+        self.star_handlers_map: Dict[str, StarHandlerMetadata] = {}
+        self._handlers: List[StarHandlerMetadata] = []
 
     def append(self, handler: StarHandlerMetadata):
-        """添加一个 Handler"""
+        """添加一个 Handler，并保持按优先级有序"""
         if "priority" not in handler.extras_configs:
             handler.extras_configs["priority"] = 0
 
-        heapq.heappush(self._handlers, (-handler.extras_configs["priority"], handler))
         self.star_handlers_map[handler.handler_full_name] = handler
+        self._handlers.append(handler)
+        self._handlers.sort(key=lambda h: -h.extras_configs["priority"])
 
     def _print_handlers(self):
-        """打印所有的 Handler"""
-        for _, handler in self._handlers:
+        for handler in self._handlers:
             print(handler.handler_full_name)
 
     def get_handlers_by_event_type(
-        self, event_type: EventType, only_activated=True
+        self, event_type: EventType, only_activated=True, platform_id=None
     ) -> List[StarHandlerMetadata]:
-        """通过事件类型获取 Handler"""
-        handlers = [
-            handler
-            for _, handler in self._handlers
-            if handler.event_type == event_type
-            and (
-                not only_activated
-                or (
-                    star_map[handler.handler_module_path]
-                    and star_map[handler.handler_module_path].activated
-                )
-            )
-        ]
+        handlers = []
+        for handler in self._handlers:
+            if handler.event_type != event_type:
+                continue
+            if only_activated:
+                plugin = star_map.get(handler.handler_module_path)
+                if not (plugin and plugin.activated):
+                    continue
+            if platform_id and event_type != EventType.OnAstrBotLoadedEvent:
+                if not handler.is_enabled_for_platform(platform_id):
+                    continue
+            handlers.append(handler)
         return handlers
 
     def get_handler_by_full_name(self, full_name: str) -> StarHandlerMetadata:
-        """通过 Handler 的全名获取 Handler"""
         return self.star_handlers_map.get(full_name, None)
 
     def get_handlers_by_module_name(
         self, module_name: str
     ) -> List[StarHandlerMetadata]:
-        """通过模块名获取 Handler"""
         return [
-            handler
-            for _, handler in self._handlers
+            handler for handler in self._handlers
             if handler.handler_module_path == module_name
         ]
 
     def clear(self):
-        """清空所有的 Handler"""
         self.star_handlers_map.clear()
         self._handlers.clear()
 
     def remove(self, handler: StarHandlerMetadata):
-        """删除一个 Handler"""
-        # self._handlers.remove(handler)
-        for i, h in enumerate(self._handlers):
-            if h[1] == handler:
-                self._handlers.pop(i)
-                break
-        try:
-            del self.star_handlers_map[handler.handler_full_name]
-        except KeyError:
-            pass
+        self.star_handlers_map.pop(handler.handler_full_name, None)
+        self._handlers = [h for h in self._handlers if h != handler]
 
     def __iter__(self):
-        """使 StarHandlerRegistry 支持迭代"""
-        return (handler for _, handler in self._handlers)
+        return iter(self._handlers)
 
     def __len__(self):
-        """返回 Handler 的数量"""
         return len(self._handlers)
-
 
 star_handlers_registry = StarHandlerRegistry()
 
@@ -139,3 +119,32 @@ class StarHandlerMetadata:
         return self.extras_configs.get("priority", 0) < other.extras_configs.get(
             "priority", 0
         )
+
+    def is_enabled_for_platform(self, platform_id: str) -> bool:
+        """检查插件是否在指定平台启用
+
+        Args:
+            platform_id: 平台ID，这是从event.get_platform_id()获取的，用于唯一标识平台实例
+
+        Returns:
+            bool: 是否启用，True表示启用，False表示禁用
+        """
+        plugin = star_map.get(self.handler_module_path)
+
+        # 如果插件元数据不存在，默认允许执行
+        if not plugin or not plugin.name:
+            return True
+
+        # 先检查插件是否被激活
+        if not plugin.activated:
+            return False
+
+        # 直接使用StarMetadata中缓存的supported_platforms判断平台兼容性
+        if (
+            hasattr(plugin, "supported_platforms")
+            and platform_id in plugin.supported_platforms
+        ):
+            return plugin.supported_platforms[platform_id]
+
+        # 如果没有缓存数据，默认允许执行
+        return True

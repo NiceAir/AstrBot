@@ -1,5 +1,5 @@
 import astrbot.core.message.components as Comp
-
+import os
 from typing import List
 from .. import Provider, Personality
 from ..entities import LLMResponse
@@ -10,6 +10,7 @@ from astrbot.core.utils.dify_api_client import DifyAPIClient
 from astrbot.core.utils.io import download_image_by_url, download_file
 from astrbot.core import logger, sp
 from astrbot.core.message.message_event_result import MessageChain
+from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 
 @register_provider_adapter("dify", "Dify APP 适配器。")
@@ -60,12 +61,14 @@ class ProviderDify(Provider):
         self,
         prompt: str,
         session_id: str = None,
-        image_urls: List[str] = [],
+        image_urls: List[str] = None,
         func_tool: FuncCall = None,
         contexts: List = None,
         system_prompt: str = None,
         **kwargs,
     ) -> LLMResponse:
+        if image_urls is None:
+            image_urls = []
         result = ""
         conversation_id = self.conversation_ids.get(session_id, "")
 
@@ -102,7 +105,7 @@ class ProviderDify(Provider):
 
         try:
             match self.api_type:
-                case "chat" | "agent":
+                case "chat" | "agent" | "chatflow":
                     if not prompt:
                         prompt = "请描述这张图片。"
 
@@ -227,7 +230,8 @@ class ProviderDify(Provider):
                     return Comp.Image(file=item["url"], url=item["url"])
                 case "audio":
                     # 仅支持 wav
-                    path = f"data/temp/{item['filename']}.wav"
+                    temp_dir = os.path.join(get_astrbot_data_path(), "temp")
+                    path = os.path.join(temp_dir, f"{item['filename']}.wav")
                     await download_file(item["url"], path)
                     return Comp.Image(file=item["url"], url=item["url"])
                 case "video":

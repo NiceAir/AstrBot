@@ -1,9 +1,19 @@
 import asyncio
-import typing
-from astrbot.api.event import AstrMessageEvent, MessageChain
-from astrbot.api.platform import Group, MessageMember
-from astrbot.api.message_components import Plain, Image, Record, At, Node, Nodes
+import re
+from typing import AsyncGenerator, Dict, List
 from aiocqhttp import CQHttp
+from astrbot.api.event import AstrMessageEvent, MessageChain
+from astrbot.api.message_components import (
+    Image,
+    Node,
+    Nodes,
+    Plain,
+    Record,
+    Video,
+    File,
+    BaseMessageComponent,
+)
+from astrbot.api.platform import Group, MessageMember
 
 
 class AiocqhttpMessageEvent(AstrMessageEvent):
@@ -14,43 +24,45 @@ class AiocqhttpMessageEvent(AstrMessageEvent):
         self.bot = bot
 
     @staticmethod
+    async def _from_segment_to_dict(segment: BaseMessageComponent) -> dict:
+        """修复部分字段"""
+        if isinstance(segment, (Image, Record)):
+            # For Image and Record segments, we convert them to base64
+            bs64 = await segment.convert_to_base64()
+            return {
+                "type": segment.type.lower(),
+                "data": {
+                    "file": f"base64://{bs64}",
+                },
+            }
+        elif isinstance(segment, File):
+            # For File segments, we need to handle the file differently
+            d = await segment.to_dict()
+            return d
+        elif isinstance(segment, Video):
+            d = await segment.to_dict()
+            return d
+        else:
+            # For other segments, we simply convert them to a dict by calling toDict
+            return segment.toDict()
+
+    @staticmethod
     async def _parse_onebot_json(message_chain: MessageChain):
         """解析成 OneBot json 格式"""
         ret = []
         for segment in message_chain.chain:
-            d = segment.toDict()
             if isinstance(segment, Plain):
-                d["type"] = "text"
-                d["data"]["text"] = segment.text.strip()
-                # 如果是空文本或者只带换行符的文本，不发送
-                if not d["data"]["text"]:
+                if not segment.text.strip():
                     continue
-            elif isinstance(segment, (Image, Record)):
-                # convert to base64
-                bs64 = await segment.convert_to_base64()
-                d["data"] = {
-                    "file": bs64,
-                }
-            elif isinstance(segment, At):
-                d["data"] = {
-                    "qq": str(segment.qq)  # 转换为字符串
-                }
+            d = await AiocqhttpMessageEvent._from_segment_to_dict(segment)
             ret.append(d)
         return ret
 
     async def send(self, message: MessageChain):
-        ret = await AiocqhttpMessageEvent._parse_onebot_json(message)
-
-        if not ret:
-            return
-
-        send_one_by_one = False
-        for seg in message.chain:
-            if isinstance(seg, (Node, Nodes)):
-                # 转发消息不能和普通消息混在一起发送
-                send_one_by_one = True
-                break
-
+        # 转发消息、文件消息不能和普通消息混在一起发送
+        send_one_by_one = any(
+            isinstance(seg, (Node, Nodes, File)) for seg in message.chain
+        )
         if send_one_by_one:
             for seg in message.chain:
                 if isinstance(seg, (Node, Nodes)):
@@ -60,7 +72,8 @@ class AiocqhttpMessageEvent(AstrMessageEvent):
                         nodes = Nodes([seg])
                         seg = nodes
 
-                    payload = seg.toDict()
+                    payload = await seg.to_dict()
+
                     if self.get_group_id():
                         payload["group_id"] = self.get_group_id()
                         await self.bot.call_action("send_group_forward_msg", **payload)
@@ -69,6 +82,12 @@ class AiocqhttpMessageEvent(AstrMessageEvent):
                         await self.bot.call_action(
                             "send_private_forward_msg", **payload
                         )
+                elif isinstance(seg, File):
+                    d = await AiocqhttpMessageEvent._from_segment_to_dict(seg)
+                    await self.bot.send(
+                        self.message_obj.raw_message,
+                        [d],
+                    )
                 else:
                     await self.bot.send(
                         self.message_obj.raw_message,
@@ -78,22 +97,46 @@ class AiocqhttpMessageEvent(AstrMessageEvent):
                     )
                     await asyncio.sleep(0.5)
         else:
+            ret = await AiocqhttpMessageEvent._parse_onebot_json(message)
+            if not ret:
+                return
             await self.bot.send(self.message_obj.raw_message, ret)
 
         await super().send(message)
 
-    async def send_streaming(self, generator):
-        buffer = None
-        async for chain in generator:
+    async def send_streaming(
+        self, generator: AsyncGenerator, use_fallback: bool = False
+    ):
+        if not use_fallback:
+            buffer = None
+            async for chain in generator:
+                if not buffer:
+                    buffer = chain
+                else:
+                    buffer.chain.extend(chain.chain)
             if not buffer:
-                buffer = chain
-            else:
-                buffer.chain.extend(chain.chain)
-        if not buffer:
-            return
-        buffer.squash_plain()
-        await self.send(buffer)
-        return await super().send_streaming(generator)
+                return
+            buffer.squash_plain()
+            await self.send(buffer)
+            return await super().send_streaming(generator, use_fallback)
+
+        buffer = ""
+        pattern = re.compile(r"[^。？！~…]+[。？！~…]+")
+
+        async for chain in generator:
+            if isinstance(chain, MessageChain):
+                for comp in chain.chain:
+                    if isinstance(comp, Plain):
+                        buffer += comp.text
+                        if any(p in buffer for p in "。？！~…"):
+                            buffer = await self.process_buffer(buffer, pattern)
+                    else:
+                        await self.send(MessageChain(chain=[comp]))
+                        await asyncio.sleep(1.5)  # 限速
+
+        if buffer.strip():
+            await self.send(MessageChain([Plain(buffer)]))
+        return await super().send_streaming(generator, use_fallback)
 
     async def get_group(self, group_id=None, **kwargs):
         if isinstance(group_id, str) and group_id.isdigit():
@@ -108,7 +151,7 @@ class AiocqhttpMessageEvent(AstrMessageEvent):
             group_id=group_id,
         )
 
-        members: typing.List[typing.Dict] = await self.bot.call_action(
+        members: List[Dict] = await self.bot.call_action(
             "get_group_member_list",
             group_id=group_id,
         )

@@ -17,10 +17,12 @@ export const useCommonStore = defineStore({
       "qq_official": "https://astrbot.app/deploy/platform/qqofficial/websockets.html",
       "aiocqhttp": "https://astrbot.app/deploy/platform/aiocqhttp/napcat.html",
       "wecom": "https://astrbot.app/deploy/platform/wecom.html",
-      "gewechat": "https://astrbot.app/deploy/platform/gewechat.html",
+      "gewechat": "https://astrbot.app/deploy/platform/wechat/gewechat.html",
       "lark": "https://astrbot.app/deploy/platform/lark.html",
       "telegram": "https://astrbot.app/deploy/platform/telegram.html",
       "dingtalk": "https://astrbot.app/deploy/platform/dingtalk.html",
+      "wechatpadpro": "https://astrbot.app/deploy/platform/wechat/wechatpadpro.html",
+      "weixin_official_account": "https://astrbot.app/deploy/platform/weixin-official-account.html",
     },
 
     pluginMarketData: [],
@@ -145,6 +147,8 @@ export const useCommonStore = defineStore({
               "tags": res.data.data[key]?.tags ? res.data.data[key].tags : [],
               "logo": res.data.data[key]?.logo ? res.data.data[key].logo : "",
               "pinned": res.data.data[key]?.pinned ? res.data.data[key].pinned : false,
+              "stars": res.data.data[key]?.stars ? res.data.data[key].stars : 0,
+              "updated_at": res.data.data[key]?.updated_at ? res.data.data[key].updated_at : "",
             })
           }
           this.pluginMarketData = data;

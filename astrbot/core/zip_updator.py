@@ -1,5 +1,6 @@
 import aiohttp
 import os
+import re
 import zipfile
 import shutil
 
@@ -8,6 +9,7 @@ import certifi
 
 from astrbot.core.utils.io import on_error, download_file
 from astrbot.core import logger
+from astrbot.core.utils.version_comparator import VersionComparator
 
 
 class ReleaseInfo:
@@ -102,23 +104,10 @@ class RepoZipUpdator:
         raise NotImplementedError()
 
     def compare_version(self, v1: str, v2: str) -> int:
-        """
-        比较两个版本号的大小。
-        返回 1 表示 v1 > v2，返回 -1 表示 v1 < v2，返回 0 表示 v1 = v2。
-        """
-        v1 = v1.replace("v", "")
-        v2 = v2.replace("v", "")
-        v1 = v1.split(".")
-        v2 = v2.split(".")
+        """Semver 版本比较"""
+        return VersionComparator.compare_version(v1, v2)
 
-        for i in range(3):
-            if int(v1[i]) > int(v2[i]):
-                return 1
-            elif int(v1[i]) < int(v2[i]):
-                return -1
-        return 0
-
-    async def check_update(self, url: str, current_version: str) -> ReleaseInfo:
+    async def check_update(self, url: str, current_version: str) -> ReleaseInfo | None:
         update_data = await self.fetch_release_info(url)
         tag_name = update_data[0]["tag_name"]
 
@@ -131,27 +120,59 @@ class RepoZipUpdator:
         )
 
     async def download_from_repo_url(self, target_path: str, repo_url: str, proxy=""):
-        repo_namespace = repo_url.split("/")[-2:]
-        author = repo_namespace[0]
-        repo = repo_namespace[1]
+        author, repo, branch = self.parse_github_url(repo_url)
 
         logger.info(f"正在下载更新 {repo} ...")
-        release_url = f"https://api.github.com/repos/{author}/{repo}/releases"
-        releases = await self.fetch_release_info(url=release_url)
-        if not releases:
-            # download from the default branch directly.
-            logger.info(f"正在从默认分支下载 {author}/{repo} ")
+
+        if branch:
+            logger.info(f"正在从指定分支 {branch} 下载 {author}/{repo}")
             release_url = (
-                f"https://github.com/{author}/{repo}/archive/refs/heads/master.zip"
+                f"https://github.com/{author}/{repo}/archive/refs/heads/{branch}.zip"
             )
         else:
-            release_url = releases[0]["zipball_url"]
+            try:
+                release_url = f"https://api.github.com/repos/{author}/{repo}/releases"
+                releases = await self.fetch_release_info(url=release_url)
+            except Exception as e:
+                logger.warning(
+                    f"获取 {author}/{repo} 的 GitHub Releases 失败: {e}，将尝试下载默认分支"
+                )
+                releases = []
+            if not releases:
+                # 如果没有最新版本，下载默认分支
+                logger.info(f"正在从默认分支下载 {author}/{repo}")
+                release_url = (
+                    f"https://github.com/{author}/{repo}/archive/refs/heads/master.zip"
+                )
+            else:
+                release_url = releases[0]["zipball_url"]
 
         if proxy:
             release_url = f"{proxy}/{release_url}"
-            logger.info(f"使用代理下载: {release_url}")
+            logger.info(
+                f"检查到设置了镜像站，将使用镜像站下载 {author}/{repo} 仓库源码: {release_url}"
+            )
 
         await download_file(release_url, target_path + ".zip")
+
+    def parse_github_url(self, url: str):
+        """使用正则表达式解析 GitHub 仓库 URL，支持 `.git` 后缀和 `tree/branch` 结构
+        Returns:
+            tuple[str, str, str]: 返回作者名、仓库名和分支名
+        Raises:
+            ValueError: 如果 URL 格式不正确
+        """
+        cleaned_url = url.rstrip("/")
+        pattern = r"^https://github\.com/([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)(\.git)?(?:/tree/([a-zA-Z0-9_-]+))?$"
+        match = re.match(pattern, cleaned_url)
+
+        if match:
+            author = match.group(1)
+            repo = match.group(2)
+            branch = match.group(4)
+            return author, repo, branch
+        else:
+            raise ValueError("无效的 GitHub URL")
 
     def unzip_file(self, zip_path: str, target_dir: str):
         """
@@ -185,17 +206,6 @@ class RepoZipUpdator:
             logger.warn(
                 f"删除更新文件失败，可以手动删除 {zip_path} 和 {os.path.join(target_dir, update_dir)}"
             )
-
-    def format_repo_name(self, repo_url: str) -> str:
-        if repo_url.endswith("/"):
-            repo_url = repo_url[:-1]
-
-        repo_namespace = repo_url.split("/")[-2:]
-        repo = repo_namespace[1]
-
-        repo = self.format_name(repo)
-
-        return repo
 
     def format_name(self, name: str) -> str:
         return name.replace("-", "_").lower()

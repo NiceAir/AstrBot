@@ -69,6 +69,7 @@
 
 <script>
 import axios from 'axios';
+import {useCustomizerStore} from "@/stores/customizer";
 
 export default {
   name: 'MessageStat',
@@ -129,7 +130,7 @@ export default {
         }
       },
       tooltip: {
-        theme: 'light',
+        theme: useCustomizerStore().uiTheme==='PurpleTheme' ? 'light' : 'dark',
         x: {
           format: 'yyyy-MM-dd HH:mm'
         },
@@ -167,7 +168,7 @@ export default {
         },
       },
       grid: {
-        borderColor: '#f1f1f1',
+        borderColor: "gray100",
         row: {
           colors: ['transparent', 'transparent'],
           opacity: 0.2
@@ -293,12 +294,12 @@ export default {
 .chart-title {
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--v-theme-primaryText);
 }
 
 .chart-subtitle {
   font-size: 12px;
-  color: #666;
+  color: var(--v-theme-secondaryText);
   margin-top: 4px;
 }
 
@@ -315,35 +316,35 @@ export default {
 
 .stat-box {
   padding: 12px 16px;
-  background: #f5f5f5;
+  background: var(--v-theme-surface);
   border-radius: 8px;
   flex: 1;
 }
 
 .stat-label {
   font-size: 12px;
-  color: #666;
+  color: var(--v-theme-secondaryText);
   margin-bottom: 4px;
 }
 
 .stat-number {
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--v-theme-primaryText);
   display: flex;
   align-items: center;
 }
 
 .trend-up .stat-number {
-  color: #4caf50;
+  color: var(--v-theme-success);
 }
 
 .trend-down .stat-number {
-  color: #f44336;
+  color: var(--v-theme-error);
 }
 
 .chart-container {
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--v-theme-border);
   padding-top: 20px;
   position: relative;
 }
@@ -354,7 +355,7 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--v-theme-overlay);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -365,6 +366,6 @@ export default {
 .loading-text {
   margin-top: 12px;
   font-size: 14px;
-  color: #666;
+  color: var(--v-theme-secondaryText);
 }
 </style>

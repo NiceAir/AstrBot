@@ -19,18 +19,15 @@ import 'highlight.js/styles/github.css';
 
         <v-col cols="12" md="12">
             <v-card>
-
                 <v-card-title>
                     <div class="pl-2 pt-2 d-flex align-center pe-2">
-                        <h2>✨ 插件市场</h2>
+                        <h2>✨ 插件市场</h2>                    
                         <v-btn icon size="small" style="margin-left: 8px" variant="plain" @click="jumpToPluginMarket()">
                             <v-icon size="small">mdi-help</v-icon>
-                            <v-tooltip activator="parent" location="start">
+                            <v-tooltip activator="parent" location="start" max-width="500" open-delay="500">
                                 <span>
                                     如无法显示，请单击此按钮跳转至插件市场，复制想安装插件对应的
-                                    `repo`
-                                    链接然后点击右下角 + 号安装，或打开链接下载压缩包安装。
-
+                                    repo链接然后点击右下角 + 号安装，或打开链接下载压缩包安装。<br/>
                                     如果因为网络问题安装失败，点击设置页选择 GitHub 加速地址。或前往仓库下载压缩包然后本地上传。
                                 </span>
                             </v-tooltip>
@@ -41,23 +38,27 @@ import 'highlight.js/styles/github.css';
                             <v-icon>{{ isListView ? 'mdi-view-grid' : 'mdi-view-list' }}</v-icon>
                         </v-btn>
 
-                        <v-spacer></v-spacer>
+                        <v-spacer/>
 
                         <v-text-field v-model="marketSearch" density="compact" label="Search"
                             prepend-inner-icon="mdi-magnify" variant="solo-filled" flat hide-details
                             single-line></v-text-field>
                     </div>
-
                 </v-card-title>
 
                 <v-card-text>
 
+                    <small style="color: var(--v-theme-secondaryText);">每个插件都是作者无偿提供的的劳动成果。如果您喜欢某个插件，请 Star！</small>
                     <div v-if="pinnedPlugins.length > 0" class="mt-4">
                         <h2>🥳 推荐</h2>
 
                         <v-row style="margin-top: 8px;">
                             <v-col cols="12" md="6" lg="6" v-for="plugin in pinnedPlugins">
-                                <ExtensionCard :extension="plugin" market-mode="true" :highlight="true">
+                                <ExtensionCard :extension="plugin" class="h-120 rounded-lg"
+                                               market-mode="true" :highlight="true"
+                                               @install="extension_url=plugin.repo;
+                                               newExtension()"
+                                               @view-readme="open(plugin.repo)">
                                 </ExtensionCard>
                             </v-col>
                         </v-row>
@@ -67,40 +68,63 @@ import 'highlight.js/styles/github.css';
 
                     <div v-if="isListView" class="mt-4">
                         <h2>📦 全部插件</h2>
+                        <v-switch
+                            v-model="showPluginFullName"
+                            label="显示完整名称"
+                            hide-details
+                            density="compact"
+                            style="margin-left: 12px"
+                        />
                         <v-col cols="12" md="12" style="padding: 0px;">
                             <v-data-table :headers="pluginMarketHeaders" :items="pluginMarketData" item-key="name"
                                 :loading="loading_" v-model:search="marketSearch" :filter-keys="filterKeys">
                                 <template v-slot:item.name="{ item }">
-                                    <div class="d-flex align-center">
+                                    <div class="d-flex align-center" style="overflow-x: auto; scrollbar-width: thin; scrollbar-track-color: transparent;">
                                         <img v-if="item.logo" :src="item.logo"
                                             style="height: 80px; width: 80px; margin-right: 8px; border-radius: 8px; margin-top: 8px; margin-bottom: 8px;"
                                             alt="logo">
                                         <span v-if="item?.repo"><a :href="item?.repo"
-                                                style="color: #000; text-decoration:none">{{
-                                                    item.name }}</a></span>
-                                        <span v-else>{{ item.name }}</span>
-
+                                                style="color: var(--v-theme-primaryText, #000); text-decoration:none">{{
+                                                    showPluginFullName ? item.name : item.trimmedName }}</a></span>
+                                        <span v-else>{{ showPluginFullName ? item.name : item.trimmedName }}</span>
                                     </div>
 
                                 </template>
+
+                                <template v-slot:item.desc="{ item }">
+                                    <div style="font-size: 13px;">
+                                        {{ item.desc }}
+                                    </div>
+                                </template>
                                 <template v-slot:item.author="{ item }">
-                                    <span v-if="item?.social_link"><a :href="item?.social_link">{{ item.author
+                                    <div style="font-size: 12px;">
+                                        <span v-if="item?.social_link"><a :href="item?.social_link">{{ item.author
                                     }}</a></span>
                                     <span v-else>{{ item.author }}</span>
+                                    </div>
+  
                                 </template>
+                                <template v-slot:item.stars="{ item }">
+                                    <span>{{ item.stars }}</span>
+                                </template>
+                                <template v-slot:item.updated_at="{ item }">
+                                    <!-- 2025-04-28T16:39:27Z -->
+                                    <span>{{ new Date(item.updated_at).toLocaleString() }}</span>
+                                </template>
+
                                 <template v-slot:item.tags="{ item }">
-                                    <span v-if="item.tags.length === 0">无</span>
-                                    <v-chip v-for="tag in item.tags" :key="tag" color="primary" size="small">{{ tag
-                                        }}</v-chip>
+                                    <span v-if="item.tags.length === 0">-</span>
+                                    <v-chip v-for="tag in item.tags" :key="tag" color="primary" size="x-small">
+                                      {{ tag }}</v-chip>
                                 </template>
                                 <template v-slot:item.actions="{ item }">
-                                    <v-btn v-if="!item.installed" class="text-none mr-2" size="small" 
-                                        variant="flat" border
-                                        @click="extension_url = item.repo; newExtension()">安装</v-btn>
-                                    <v-btn v-else class="text-none mr-2" size="small" variant="flat" border
-                                        disabled>已安装</v-btn>
-                                    <v-btn class="text-none mr-2" size="small" variant="flat" border 
-                                        @click="open(item.repo)">查看帮助</v-btn>
+                                    <v-btn v-if="!item.installed" class="text-none mr-2" size="x-small"
+                                        variant="flat" @click="extension_url = item.repo; newExtension()">
+                                      <v-icon>mdi-download</v-icon></v-btn>
+                                    <v-btn v-else class="text-none mr-2" size="x-small" variant="flat" border
+                                        disabled><v-icon>mdi-check</v-icon></v-btn>
+                                    <v-btn class="text-none mr-2" size="x-small" variant="flat" border
+                                        @click="open(item.repo)"><v-icon>mdi-help</v-icon></v-btn>
                                 </template>
                             </v-data-table>
                         </v-col>
@@ -243,6 +267,7 @@ export default {
             loading_: false,
             upload_file: null,
             pluginMarketData: [],
+            showPluginFullName: false,
             loadingDialog: {
                 show: false,
                 title: "加载中...",
@@ -259,10 +284,12 @@ export default {
             announcement: "",
             isListView: true,
             pluginMarketHeaders: [
-                { title: '名称', key: 'name', maxWidth: '150px' },
+                { title: '名称', key: 'name', maxWidth: '200px' },
                 { title: '描述', key: 'desc', maxWidth: '250px' },
-                { title: '作者', key: 'author', maxWidth: '60px' },
-                { title: '标签', key: 'tags', maxWidth: '60px' },
+                { title: '作者', key: 'author', maxWidth: '90px' },
+                { title: 'Star数', key: 'stars', maxWidth: '80px' },
+                { title: '最近更新', key: 'updated_at', maxWidth: '100px' },
+                { title: '标签', key: 'tags', maxWidth: '100px' },
                 { title: '操作', key: 'actions', sortable: false }
             ],
             marketSearch: "",
@@ -295,6 +322,7 @@ export default {
         this.loading_ = true
         this.commonStore.getPluginCollections().then((data) => {
             this.pluginMarketData = data;
+            this.trimExtensionName();
             this.checkAlreadyInstalled();
             this.checkUpdate();
             this.loading_ = false
@@ -343,11 +371,23 @@ export default {
         getExtensions() {
             axios.get('/api/plugin/get').then((res) => {
                 this.extension_data = res.data;
+                this.trimExtensionName();
                 this.checkAlreadyInstalled();
                 this.checkUpdate()
             });
         },
-
+        trimExtensionName() {
+            this.pluginMarketData.forEach(plugin => {
+                if (plugin.name) {
+                  let name = plugin.name.trim().toLowerCase();
+                  if (name.startsWith("astrbot_plugin_")) {
+                    plugin.trimmedName = name.substring(15);
+                  } else if (name.startsWith("astrbot_") || name.startsWith("astrbot-")) {
+                    plugin.trimmedName = name.substring(8);
+                  } else plugin.trimmedName = plugin.name;
+                }
+            });
+        },
         checkUpdate() {
             // 创建在线插件的map
             const onlinePluginsMap = new Map();
@@ -545,7 +585,7 @@ export default {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     line-height: 1.6;
     padding: 8px 0;
-    color: #24292e;
+    color: var(--v-theme-secondaryText);
 }
 
 .markdown-body h1,
@@ -562,13 +602,13 @@ export default {
 
 .markdown-body h1 {
     font-size: 2em;
-    border-bottom: 1px solid #eaecef;
+    border-bottom: 1px solid var(--v-theme-border);
     padding-bottom: 0.3em;
 }
 
 .markdown-body h2 {
     font-size: 1.5em;
-    border-bottom: 1px solid #eaecef;
+    border-bottom: 1px solid var(--v-theme-border);
     padding-bottom: 0.3em;
 }
 
@@ -580,7 +620,7 @@ export default {
 .markdown-body code {
     padding: 0.2em 0.4em;
     margin: 0;
-    background-color: rgba(27, 31, 35, 0.05);
+    background-color: var(--v-theme-codeBg);
     border-radius: 3px;
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     font-size: 85%;
@@ -591,7 +631,7 @@ export default {
     overflow: auto;
     font-size: 85%;
     line-height: 1.45;
-    background-color: #f6f8fa;
+    background-color: var(--v-theme-containerBg);
     border-radius: 3px;
     margin-bottom: 16px;
 }
@@ -611,19 +651,19 @@ export default {
     max-width: 100%;
     margin: 8px 0;
     box-sizing: border-box;
-    background-color: #fff;
+    background-color: var(--v-theme-background);
     border-radius: 3px;
 }
 
 .markdown-body blockquote {
     padding: 0 1em;
-    color: #6a737d;
-    border-left: 0.25em solid #dfe2e5;
+    color: var(--v-theme-secondaryText);
+    border-left: 0.25em solid var(--v-theme-border);
     margin-bottom: 16px;
 }
 
 .markdown-body a {
-    color: #0366d6;
+    color: var(--v-theme-primary);
     text-decoration: none;
 }
 
@@ -642,23 +682,23 @@ export default {
 .markdown-body table th,
 .markdown-body table td {
     padding: 6px 13px;
-    border: 1px solid #dfe2e5;
+    border: 1px solid var(--v-theme-background);
 }
 
 .markdown-body table tr {
-    background-color: #fff;
-    border-top: 1px solid #c6cbd1;
+    background-color: var(--v-theme-surface);
+    border-top: 1px solid var(--v-theme-border);
 }
 
 .markdown-body table tr:nth-child(2n) {
-    background-color: #f6f8fa;
+    background-color: var(--v-theme-background);
 }
 
 .markdown-body hr {
     height: 0.25em;
     padding: 0;
     margin: 24px 0;
-    background-color: #e1e4e8;
+    background-color: var(--v-theme-containerBg);
     border: 0;
 }
 </style>

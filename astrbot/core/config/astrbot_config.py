@@ -4,8 +4,9 @@ import logging
 import enum
 from .default import DEFAULT_CONFIG, DEFAULT_VALUE_MAP
 from typing import Dict
+from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
-ASTRBOT_CONFIG_PATH = "data/cmd_config.json"
+ASTRBOT_CONFIG_PATH = os.path.join(get_astrbot_data_path(), "cmd_config.json")
 logger = logging.getLogger("astrbot")
 
 
@@ -45,8 +46,6 @@ class AstrBotConfig(dict):
 
         with open(config_path, "r", encoding="utf-8-sig") as f:
             conf_str = f.read()
-            if conf_str.startswith("/ufeff"):  # remove BOM
-                conf_str = conf_str.encode("utf8")[3:].decode("utf8")
             conf = json.loads(conf_str)
 
         # 检查配置完整性，并插入
@@ -100,6 +99,12 @@ class AstrBotConfig(dict):
                     has_new |= self.check_config_integrity(
                         value, conf[key], path + "." + key if path else key
                     )
+        for key in list(conf.keys()):
+            if key not in refer_conf:
+                path_ = path + "." + key if path else key
+                logger.info(f"检查到配置项 {path_} 不存在，将从当前配置中删除")
+                del conf[key]
+                has_new = True
         return has_new
 
     def save_config(self, replace_config: Dict = None):

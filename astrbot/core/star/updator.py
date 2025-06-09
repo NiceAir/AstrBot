@@ -6,22 +6,20 @@ from ..updator import RepoZipUpdator
 from astrbot.core.utils.io import remove_dir, on_error
 from ..star.star import StarMetadata
 from astrbot.core import logger
+from astrbot.core.utils.astrbot_path import get_astrbot_plugin_path
 
 
 class PluginUpdator(RepoZipUpdator):
     def __init__(self, repo_mirror: str = "") -> None:
         super().__init__(repo_mirror)
-        self.plugin_store_path = os.path.abspath(
-            os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), "../../../data/plugins"
-            )
-        )
+        self.plugin_store_path = get_astrbot_plugin_path()
 
     def get_plugin_store_path(self) -> str:
         return self.plugin_store_path
 
     async def install(self, repo_url: str, proxy="") -> str:
-        repo_name = self.format_repo_name(repo_url)
+        _, repo_name, _ = self.parse_github_url(repo_url)
+        repo_name = self.format_name(repo_name)
         plugin_path = os.path.join(self.plugin_store_path, repo_name)
         await self.download_from_repo_url(plugin_path, repo_url, proxy)
         self.unzip_file(plugin_path + ".zip", plugin_path)
@@ -57,7 +55,7 @@ class PluginUpdator(RepoZipUpdator):
     def unzip_file(self, zip_path: str, target_dir: str):
         os.makedirs(target_dir, exist_ok=True)
         update_dir = ""
-        logger.info(f"解压文件: {zip_path}")
+        logger.info(f"正在解压压缩包: {zip_path}")
         with zipfile.ZipFile(zip_path, "r") as z:
             update_dir = z.namelist()[0]
             z.extractall(target_dir)

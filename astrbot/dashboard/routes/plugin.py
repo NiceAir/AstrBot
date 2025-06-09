@@ -1,5 +1,6 @@
 import traceback
 import aiohttp
+import os
 
 import ssl
 import certifi
@@ -16,6 +17,12 @@ from astrbot.core.star.filter.permission import PermissionTypeFilter
 from astrbot.core.star.filter.regex import RegexFilter
 from astrbot.core.star.star_handler import EventType
 from astrbot.core import DEMO_MODE
+
+try:
+    import nh3
+except ImportError:
+    logger.warning("未安装 nh3 库，无法清理插件 README.md 中的 HTML 标签。")
+    nh3 = None
 
 
 class PluginRoute(Route):
@@ -36,6 +43,9 @@ class PluginRoute(Route):
             "/plugin/off": ("POST", self.off_plugin),
             "/plugin/on": ("POST", self.on_plugin),
             "/plugin/reload": ("POST", self.reload_plugins),
+            "/plugin/readme": ("GET", self.get_plugin_readme),
+            "/plugin/platform_enable/get": ("GET", self.get_plugin_platform_enable),
+            "/plugin/platform_enable/set": ("POST", self.set_plugin_platform_enable),
         }
         self.core_lifecycle = core_lifecycle
         self.plugin_manager = plugin_manager
@@ -98,7 +108,10 @@ class PluginRoute(Route):
 
     async def get_plugins(self):
         _plugin_resp = []
+        plugin_name = request.args.get("name")
         for plugin in self.plugin_manager.context.get_all_stars():
+            if plugin_name and plugin.name != plugin_name:
+                continue
             _t = {
                 "name": plugin.name,
                 "repo": "" if plugin.repo is None else plugin.repo,
@@ -316,4 +329,135 @@ class PluginRoute(Route):
             return Response().ok(None, "启用成功。").__dict__
         except Exception as e:
             logger.error(f"/api/plugin/on: {traceback.format_exc()}")
+            return Response().error(str(e)).__dict__
+
+    async def get_plugin_readme(self):
+        if not nh3:
+            return Response().error("未安装 nh3 库").__dict__
+
+        plugin_name = request.args.get("name")
+        logger.debug(f"正在获取插件 {plugin_name} 的README文件内容")
+
+        if not plugin_name:
+            logger.warning("插件名称为空")
+            return Response().error("插件名称不能为空").__dict__
+
+        plugin_obj = None
+        for plugin in self.plugin_manager.context.get_all_stars():
+            if plugin.name == plugin_name:
+                plugin_obj = plugin
+                break
+
+        if not plugin_obj:
+            logger.warning(f"插件 {plugin_name} 不存在")
+            return Response().error(f"插件 {plugin_name} 不存在").__dict__
+
+        plugin_dir = os.path.join(
+            self.plugin_manager.plugin_store_path, plugin_obj.root_dir_name
+        )
+
+        if not os.path.isdir(plugin_dir):
+            logger.warning(f"无法找到插件目录: {plugin_dir}")
+            return Response().error(f"无法找到插件 {plugin_name} 的目录").__dict__
+
+        readme_path = os.path.join(plugin_dir, "README.md")
+
+        if not os.path.isfile(readme_path):
+            logger.warning(f"插件 {plugin_name} 没有README文件")
+            return Response().error(f"插件 {plugin_name} 没有README文件").__dict__
+
+        try:
+            with open(readme_path, "r", encoding="utf-8") as f:
+                readme_content = f.read()
+
+            cleaned_content = nh3.clean(readme_content)
+
+            return (
+                Response()
+                .ok({"content": cleaned_content}, "成功获取README内容")
+                .__dict__
+            )
+        except Exception as e:
+            logger.error(f"/api/plugin/readme: {traceback.format_exc()}")
+            return Response().error(f"读取README文件失败: {str(e)}").__dict__
+
+    async def get_plugin_platform_enable(self):
+        """获取插件在各平台的可用性配置"""
+        try:
+            platform_enable = self.core_lifecycle.astrbot_config.get(
+                "platform_settings", {}
+            ).get("plugin_enable", {})
+
+            # 获取所有可用平台
+            platforms = []
+
+            for platform in self.core_lifecycle.astrbot_config.get("platform", []):
+                platform_type = platform.get("type", "")
+                platform_id = platform.get("id", "")
+
+                platforms.append({
+                    "name": platform_id,  # 使用type作为name，这是系统内部使用的平台名称
+                    "id": platform_id,  # 保留id字段以便前端可以显示
+                    "type": platform_type,
+                    "display_name": f"{platform_type}({platform_id})",
+                })
+
+            adjusted_platform_enable = {}
+            for platform_id, plugins in platform_enable.items():
+                adjusted_platform_enable[platform_id] = plugins
+
+            # 获取所有插件，包括系统内部插件
+            plugins = []
+            for plugin in self.plugin_manager.context.get_all_stars():
+                plugins.append({
+                    "name": plugin.name,
+                    "desc": plugin.desc,
+                    "reserved": plugin.reserved,  # 添加reserved标志
+                })
+
+            logger.debug(
+                f"获取插件平台配置: 原始配置={platform_enable}, 调整后={adjusted_platform_enable}"
+            )
+
+            return (
+                Response()
+                .ok({
+                    "platforms": platforms,
+                    "plugins": plugins,
+                    "platform_enable": adjusted_platform_enable,
+                })
+                .__dict__
+            )
+        except Exception as e:
+            logger.error(f"/api/plugin/platform_enable/get: {traceback.format_exc()}")
+            return Response().error(str(e)).__dict__
+
+    async def set_plugin_platform_enable(self):
+        """设置插件在各平台的可用性配置"""
+        if DEMO_MODE:
+            return (
+                Response()
+                .error("You are not permitted to do this operation in demo mode")
+                .__dict__
+            )
+
+        try:
+            data = await request.json
+            platform_enable = data.get("platform_enable", {})
+
+            # 更新配置
+            config = self.core_lifecycle.astrbot_config
+            platform_settings = config.get("platform_settings", {})
+            platform_settings["plugin_enable"] = platform_enable
+            config["platform_settings"] = platform_settings
+            config.save_config()
+
+            # 更新插件的平台兼容性缓存
+            await self.plugin_manager.update_all_platform_compatibility()
+
+            logger.info(f"插件平台可用性配置已更新: {platform_enable}")
+
+            return Response().ok(None, "插件平台可用性配置已更新").__dict__
+        except Exception as e:
+            logger.error(f"/api/plugin/platform_enable/set: {traceback.format_exc()}")
             return Response().error(str(e)).__dict__

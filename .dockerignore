@@ -19,3 +19,7 @@ README*.md
 dashboard/
 data/
 .python-version
+changelogs/
+tests/
+.ruff_cache/
+.astrbot
