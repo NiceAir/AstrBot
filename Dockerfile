@@ -21,9 +21,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
-RUN python -m pip install uv
-RUN uv pip install -r requirements.txt  --system
-RUN uv pip install socksio uv pyffmpeg pilk  --system
+#RUN python -m pip install uv
+#RUN uv pip install -r requirements.txt  --system
+#RUN uv pip install socksio uv pyffmpeg pilk  --system
+
+
+RUN pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip install socksio  pyffmpeg pilk  -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 释出 ffmpeg
 RUN python -c "from pyffmpeg import FFmpeg; ff = FFmpeg();"

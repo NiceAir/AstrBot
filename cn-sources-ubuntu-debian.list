@@ -1,8 +1,8 @@
-deb https://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm main contrib non-free
-deb-src https://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm main contrib non-free
+deb https://mirrors.cloud.tencent.com/debian bookworm main non-free contrib
+deb-src https://mirrors.cloud.tencent.com/debian bookworm main non-free contrib
+deb https://mirrors.cloud.tencent.com/debian-security bookworm-security main
+deb https://mirrors.cloud.tencent.com/debian bookworm-updates main non-free contrib
+deb-src https://mirrors.cloud.tencent.com/debian bookworm-updates main non-free contrib
+deb https://mirrors.cloud.tencent.com/debian bookworm-backports main non-free contrib
+deb-src https://mirrors.cloud.tencent.com/debian bookworm-backports main non-free contrib
 
-deb https://mirrors.tuna.tsinghua.edu.cn/debian-security bookworm-security main
-deb-src https://mirrors.tuna.tsinghua.edu.cn/debian-security bookworm-security main
-
-deb https://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm-updates main contrib non-free
-deb-src https://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm-updates main contrib non-free
