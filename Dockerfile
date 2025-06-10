@@ -4,6 +4,7 @@ WORKDIR /AstrBot
 COPY . /AstrBot/
 
 COPY cn-sources-ubuntu-debian.list  /etc/apt/sources.list
+RUN mv /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list.d/debian.sources.bak
 
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
