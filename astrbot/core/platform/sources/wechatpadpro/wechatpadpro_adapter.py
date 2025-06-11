@@ -9,6 +9,7 @@ import aiohttp
 import anyio
 import websockets
 from astrbot import logger
+from astrbot.core.utils.io import save_temp_img
 from astrbot.api.message_components import Plain, Image, At, Record
 from astrbot.api.platform import Platform, PlatformMetadata
 from astrbot.core.message.message_event_result import MessageChain
@@ -695,7 +696,9 @@ class WeChatPadProAdapter(Platform):
                 image_resp.get("Data", {}).get("Data", {}).get("Buffer", None)
             )
             if image_bs64_data:
-                abm.message.append(Image.fromBase64(image_bs64_data))
+                image = Image.fromBase64(image_bs64_data)
+                image.path = save_temp_img(base64.b64decode(image_bs64_data))
+                abm.message.append(image)
                 # 缓存图片，以便引用消息可以查找
                 try:
                     # 获取msg_id作为缓存的key
