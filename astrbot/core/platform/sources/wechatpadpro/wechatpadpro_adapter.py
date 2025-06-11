@@ -10,7 +10,7 @@ import anyio
 import websockets
 from astrbot import logger
 from astrbot.core.utils.io import save_temp_img
-from astrbot.api.message_components import Plain, Image, At, Record
+from astrbot.api.message_components import Plain, Image, At, Record, Video
 from astrbot.api.platform import Platform, PlatformMetadata
 from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.platform.astrbot_message import (
@@ -697,7 +697,7 @@ class WeChatPadProAdapter(Platform):
             )
             if image_bs64_data:
                 image = Image.fromBase64(image_bs64_data)
-                image.path = save_temp_img(base64.b64decode(image_bs64_data))
+               # image.path = save_temp_img(base64.b64decode(image_bs64_data))
                 abm.message.append(image)
                 # 缓存图片，以便引用消息可以查找
                 try:
@@ -717,8 +717,10 @@ class WeChatPadProAdapter(Platform):
                         self.cached_images[str(new_msg_id)] = image_bs64_data
                 except Exception as e:
                     logger.error(f"缓存图片消息失败: {e}")
-        elif msg_type == 47:
-            # 视频消息 (注意：表情消息也是 47，需要区分)
+        elif msg_type == 43: # 视频消息
+            video = Video(file="", cover=content)
+            abm.message.append(video)
+        elif msg_type == 47: # 表情包消息
             data_parser = GeweDataParser(
                 content=content,
                 is_private_chat=(abm.type != MessageType.GROUP_MESSAGE),
@@ -760,7 +762,7 @@ class WeChatPadProAdapter(Platform):
                 async with await anyio.open_file(file_path, "wb") as f:
                     await f.write(voice_bs64_data)
                 abm.message.append(Record(file=file_path, url=file_path))
-        elif msg_type == 49:
+        elif msg_type == 49: # 公众号/文件/小程序/引用/转账/红包/视频号/群聊邀请
             try:
                 parser = GeweDataParser(
                     content=content,
