@@ -5,7 +5,7 @@
 import os
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
-VERSION = "3.5.14"
+VERSION = "3.5.15"
 DB_PATH = os.path.join(get_astrbot_data_path(), "data_v3.db")
 
 # 默认配置
@@ -40,12 +40,15 @@ DEFAULT_CONFIG = {
         },
         "no_permission_reply": True,
         "empty_mention_waiting": True,
+        "empty_mention_waiting_need_reply": True,
         "friend_message_needs_wake_prefix": False,
         "ignore_bot_self_message": False,
+        "ignore_at_all": False,
     },
     "provider": [],
     "provider_settings": {
         "enable": True,
+        "default_provider_id": "",
         "wake_prefix": "",
         "web_search": False,
         "web_search_link": False,
@@ -57,6 +60,7 @@ DEFAULT_CONFIG = {
         "dequeue_context_length": 1,
         "streaming_response": False,
         "streaming_segmented": False,
+        "separate_provider": False,
     },
     "provider_stt_settings": {
         "enable": False,
@@ -355,9 +359,14 @@ CONFIG_METADATA_2 = {
                         "hint": "启用后，当用户没有权限执行某个操作时，机器人会回复一条消息。",
                     },
                     "empty_mention_waiting": {
-                        "description": "只 @ 机器人是否触发等待回复",
+                        "description": "只 @ 机器人是否触发等待",
                         "type": "bool",
-                        "hint": "启用后，当消息内容只有 @ 机器人时，会触发等待回复，在 60 秒内的该用户的任意一条消息均会唤醒机器人。这在某些平台不支持 @ 和语音/图片等消息同时发送时特别有用。",
+                        "hint": "启用后，当消息内容只有 @ 机器人时，会触发等待，在 60 秒内的该用户的任意一条消息均会唤醒机器人。这在某些平台不支持 @ 和语音/图片等消息同时发送时特别有用。",
+                    },
+                    "empty_mention_waiting_need_reply": {
+                        "description": "只 @ 机器人触发等待时是否需要回复提醒",
+                        "type": "bool",
+                        "hint": "在上面一个配置项中，如果启用了触发等待，启用此项后，机器人会使用 LLM 生成一条回复。否则，将不回复而只是等待。",
                     },
                     "friend_message_needs_wake_prefix": {
                         "description": "私聊消息是否需要唤醒前缀",
@@ -368,6 +377,11 @@ CONFIG_METADATA_2 = {
                         "description": "是否忽略机器人自身的消息",
                         "type": "bool",
                         "hint": "某些平台如 gewechat 会将自身账号在其他 APP 端发送的消息也当做消息事件下发导致给自己发消息时唤醒机器人",
+                    },
+                    "ignore_at_all": {
+                        "description": "是否忽略 @ 全体成员",
+                        "type": "bool",
+                        "hint": "启用后，机器人会忽略 @ 全体成员 的消息事件。",
                     },
                     "segmented_reply": {
                         "description": "分段回复",
@@ -620,6 +634,7 @@ CONFIG_METADATA_2 = {
                         "gm_resp_image_modal": False,
                         "gm_native_search": False,
                         "gm_native_coderunner": False,
+                        "gm_url_context": False,
                         "gm_safety_settings": {
                             "harassment": "BLOCK_MEDIUM_AND_ABOVE",
                             "hate_speech": "BLOCK_MEDIUM_AND_ABOVE",
@@ -1024,6 +1039,12 @@ CONFIG_METADATA_2 = {
                         "hint": "启用后所有函数工具将全部失效",
                         "obvious_hint": True,
                     },
+                    "gm_url_context": {
+                        "description": "启用URL上下文功能",
+                        "type": "bool",
+                        "hint": "启用后所有函数工具将全部失效",
+                        "obvious_hint": True,
+                    },
                     "gm_safety_settings": {
                         "description": "安全过滤器",
                         "type": "object",
@@ -1379,8 +1400,18 @@ CONFIG_METADATA_2 = {
                     "enable": {
                         "description": "启用大语言模型聊天",
                         "type": "bool",
-                        "hint": "如需切换大语言模型提供商，请使用 `/provider` 命令。",
+                        "hint": "如需切换大语言模型提供商，请使用 /provider 命令。",
                         "obvious_hint": True,
+                    },
+                    "separate_provider": {
+                        "description": "提供商会话隔离",
+                        "type": "bool",
+                        "hint": "启用后，每个会话支持独立选择文本生成、STT、TTS 等提供商。如果会话在使用 /provider 指令时提示无权限，可以将会话加入管理员名单或者使用 /alter_cmd provider member 将指令设为非管理员指令。",
+                    },
+                    "default_provider_id": {
+                        "description": "默认模型提供商 ID",
+                        "type": "string",
+                        "hint": "可选。每个聊天会话的默认提供商 ID。",
                     },
                     "wake_prefix": {
                         "description": "LLM 聊天额外唤醒前缀",
@@ -1494,7 +1525,7 @@ CONFIG_METADATA_2 = {
                         "obvious_hint": True,
                     },
                     "provider_id": {
-                        "description": "提供商 ID，不填则默认第一个STT提供商",
+                        "description": "提供商 ID",
                         "type": "string",
                         "hint": "语音转文本提供商 ID。如果不填写将使用载入的第一个提供商。",
                     },
@@ -1511,7 +1542,7 @@ CONFIG_METADATA_2 = {
                         "obvious_hint": True,
                     },
                     "provider_id": {
-                        "description": "提供商 ID，不填则默认第一个TTS提供商",
+                        "description": "提供商 ID",
                         "type": "string",
                         "hint": "文本转语音提供商 ID。如果不填写将使用载入的第一个提供商。",
                     },
