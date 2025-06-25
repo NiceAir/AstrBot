@@ -723,7 +723,7 @@ class WeChatPadProAdapter(Platform):
             )
             if image_bs64_data:
                 image = Image.fromBase64(image_bs64_data)
-               # image.path = save_temp_img(base64.b64decode(image_bs64_data))
+                image.url = save_temp_img(base64.b64decode(image_bs64_data, validate=True))
                 abm.message.append(image)
                 # 缓存图片，以便引用消息可以查找
                 try:
