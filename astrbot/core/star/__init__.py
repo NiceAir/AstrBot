@@ -1,4 +1,4 @@
-from .star import StarMetadata
+from .star import StarMetadata, star_map, star_registry
 from .star_manager import PluginManager
 from .context import Context
 from astrbot.core.provider import Provider
@@ -14,14 +14,31 @@ class Star(CommandParserMixin):
         StarTools.initialize(context)
         self.context = context
 
-    async def text_to_image(self, text: str, return_url=True) -> str:
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if not star_map.get(cls.__module__):
+            metadata = StarMetadata(
+                star_cls_type=cls,
+                module_path=cls.__module__,
+            )
+            star_map[cls.__module__] = metadata
+            star_registry.append(metadata)
+        else:
+            star_map[cls.__module__].star_cls_type = cls
+            star_map[cls.__module__].module_path = cls.__module__
+
+    @staticmethod
+    async def text_to_image(text: str, return_url=True) -> str:
         """将文本转换为图片"""
         return await html_renderer.render_t2i(text, return_url=return_url)
 
-    async def html_render(self, tmpl: str, data: dict, return_url=True) -> str:
+    @staticmethod
+    async def html_render(
+        tmpl: str, data: dict, return_url=True, options: dict = None
+    ) -> str:
         """渲染 HTML"""
         return await html_renderer.render_custom_template(
-            tmpl, data, return_url=return_url
+            tmpl, data, return_url=return_url, options=options
         )
 
     async def terminate(self):

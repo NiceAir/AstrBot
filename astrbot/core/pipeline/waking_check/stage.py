@@ -1,13 +1,16 @@
-from ..stage import Stage, register_stage
-from ..context import PipelineContext
+from typing import AsyncGenerator, Union
+
 from astrbot import logger
-from typing import Union, AsyncGenerator
-from astrbot.core.platform.astr_message_event import AstrMessageEvent
-from astrbot.core.message.message_event_result import MessageEventResult, MessageChain
 from astrbot.core.message.components import At, AtAll, Reply
-from astrbot.core.star.star_handler import star_handlers_registry, EventType
-from astrbot.core.star.star import star_map
+from astrbot.core.message.message_event_result import MessageChain, MessageEventResult
+from astrbot.core.platform.astr_message_event import AstrMessageEvent
 from astrbot.core.star.filter.permission import PermissionTypeFilter
+from astrbot.core.star.session_plugin_manager import SessionPluginManager
+from astrbot.core.star.star import star_map
+from astrbot.core.star.star_handler import EventType, star_handlers_registry
+
+from ..context import PipelineContext
+from ..stage import Stage, register_stage
 
 
 @register_stage
@@ -135,7 +138,6 @@ class WakingCheckStage(Stage):
                             f"插件 {star_map[handler.handler_module_path].name}: {e}"
                         )
                     )
-                    await event._post_send()
                     event.stop_event()
                     passed = False
                     break
@@ -150,7 +152,6 @@ class WakingCheckStage(Stage):
                                 f"您(ID: {event.get_sender_id()})的权限不足以使用此指令。通过 /sid 获取 ID 并请管理员添加。"
                             )
                         )
-                        await event._post_send()
                     logger.info(
                         f"触发 {star_map[handler.handler_module_path].name} 时, 用户(ID={event.get_sender_id()}) 权限不足。"
                     )
@@ -166,7 +167,12 @@ class WakingCheckStage(Stage):
                         "parsed_params"
                     )
 
-            event.clear_extra()
+            event._extras.pop("parsed_params", None)
+
+        # 根据会话配置过滤插件处理器
+        activated_handlers = SessionPluginManager.filter_handlers_by_session(
+            event, activated_handlers
+        )
 
         event.set_extra("activated_handlers", activated_handlers)
         event.set_extra("handlers_parsed_params", handlers_parsed_params)
