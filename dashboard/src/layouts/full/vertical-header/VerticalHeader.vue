@@ -7,8 +7,16 @@ import LanguageSwitcher from '@/components/shared/LanguageSwitcher.vue';
 import {md5} from 'js-md5';
 import {useAuthStore} from '@/stores/auth';
 import {useCommonStore} from '@/stores/common';
-import {marked} from 'marked';
+import MarkdownIt from 'markdown-it';
 import { useI18n } from '@/i18n/composables';
+
+// 配置markdown-it，默认安全设置
+const md = new MarkdownIt({
+    html: true,        // 启用HTML标签
+    breaks: true,       // 换行转<br>
+    linkify: true,      // 自动转链接
+    typographer: false  // 禁用智能引号
+});
 
 const customizer = useCustomizerStore();
 const { t } = useI18n();
@@ -29,7 +37,7 @@ let dashboardCurrentVersion = ref('');
 let version = ref('');
 let releases = ref([]);
 let devCommits = ref([]);
-
+let updatingDashboardLoading = ref(false);
 let installLoading = ref(false);
 
 let tab = ref(0);
@@ -217,6 +225,7 @@ function switchVersion(version: string) {
 }
 
 function updateDashboard() {
+  updatingDashboardLoading.value = true;
   updateStatus.value = t('core.header.updateDialog.status.updating');
   axios.post('/api/update/dashboard')
       .then((res) => {
@@ -230,7 +239,9 @@ function updateDashboard() {
       .catch((err) => {
         console.log(err);
         updateStatus.value = err
-      });
+      }).finally(() => {
+    updatingDashboardLoading.value = false;
+  });
 }
 
 function toggleDarkMode() {
@@ -320,7 +331,7 @@ commonStore.getStartTime();
 
             <div v-if="releaseMessage"
                 style="background-color: #646cff24; padding: 16px; border-radius: 10px; font-size: 14px; max-height: 400px; overflow-y: auto;"
-                v-html="marked(releaseMessage)" class="markdown-content">
+                v-html="md.render(releaseMessage)" class="markdown-content">
             </div>
 
             <div class="mb-4 mt-4">
@@ -416,7 +427,7 @@ commonStore.getStartTime();
               </div>
 
               <v-btn color="primary" style="border-radius: 10px;" @click="updateDashboard()"
-                     :disabled="!dashboardHasNewVersion">
+                     :disabled="!dashboardHasNewVersion" :loading="updatingDashboardLoading">
                 {{ t('core.header.updateDialog.dashboardUpdate.downloadAndUpdate') }}
               </v-btn>
             </div>
